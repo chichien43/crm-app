@@ -13,6 +13,7 @@ import AddSvcView from './components/AddSvcView';
 import AddBuyView from './components/AddBuyView';
 import AddSubView from './components/AddSubView';
 import BadgesView from './components/BadgesView';
+import { saveAll } from './data';
 import LoginView from './components/LoginView';
 import ProductDetailView from './components/ProductDetailView';
 import SearchView from './components/SearchView';
@@ -46,7 +47,7 @@ export default function App() {
       setPage(null);
       setShowSettings(false);
     };
-    const handleDataUpdate = () => setTick(t => t + 1);
+    const handleDataUpdate = () => { saveAll(); setTick(t => t + 1); };
     const handleGoBack = () => {
       setPage(null);
     };

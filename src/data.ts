@@ -2,12 +2,20 @@ import { Product, Customer, Purchase, Reminder, Subscription, Schedule } from '.
 
 export const TODAY = '2026-10-08';
 
-export const userProfile = {
-  name: '王小明',
-  avatar: ''
+const load = (key, defaultData) => {
+  try {
+    const saved = localStorage.getItem('crm_' + key);
+    if (saved) return JSON.parse(saved);
+  } catch (e) { console.error('Failed to load ' + key, e); }
+  return defaultData;
 };
 
-export const initialProducts: Product[] = [
+export const userProfile = load('userProfile', {
+  name: '王小明',
+  avatar: ''
+});
+
+export const initialProducts: Product[] = load('products', [
   { id: 1, name: '益生菌 30包', types: ['零售', '享回購'], price: 1800 },
   { id: 2, name: '膠原蛋白飲', types: ['零售', '享回購'], price: 2400 },
   { id: 3, name: '溫和洗髮精', types: ['零售', '享回購'], price: 680 },
@@ -16,9 +24,9 @@ export const initialProducts: Product[] = [
   { id: 6, name: '健康講座・台北場', types: ['活動'], price: 0, date: '2026-09-14' },
   { id: 7, name: '秋季美容體驗會', types: ['活動'], price: 300, date: '2026-10-17' },
   { id: 8, name: 'VIP 品茶會', types: ['活動'], price: 0, date: '2026-08-20' },
-];
+]);
 
-export const initialPurchases: Purchase[] = [
+export const initialPurchases: Purchase[] = load('purchases', [
   { c: 1, p: 1, d: '2026-09-20', q: 2, v: '享回購' }, { c: 1, p: 1, d: '2026-08-20', q: 2, v: '享回購' },
   { c: 1, p: 2, d: '2026-08-02', q: 1, v: '零售' }, { c: 1, p: 6, d: '2026-09-14', q: 1, v: '活動' },
   { c: 2, p: 4, d: '2026-09-26', q: 1, v: '零售' },
@@ -28,9 +36,9 @@ export const initialPurchases: Purchase[] = [
   { c: 6, p: 2, d: '2026-09-25', q: 1, v: '享回購' },
   { c: 7, p: 1, d: '2026-09-15', q: 1, v: '享回購' },
   { c: 8, p: 4, d: '2026-09-10', q: 1, v: '享回購' }
-];
+]);
 
-export const initialCustomers: Customer[] = [
+export const initialCustomers: Customer[] = load('customers', [
   {
     id: 1, name: '林美華', ini: '林', tags: ['VIP', '美容', '腸胃'], last: 3, phone: '0912-345-678', bd: '03/15', mar: '已婚', kids: '2 個孩子', mno: 'TW1234567', pw: 'Lin0315!', src: '朋友介紹', need: '腸胃保養', also: '王小明', note: '喜歡下午聯絡',
     leads: [{ n: '林美玲', rel: '妹妹', need: '產後想瘦身' }],
@@ -61,27 +69,38 @@ export const initialCustomers: Customer[] = [
     leads: [{ n: '黃先生', rel: '先生', need: '血壓、體力' }],
     sv: [{ d: '2026-09-30', w: 'LINE', x: '報名秋季美容體驗會' }]
   }
-];
+]);
 
-export const initialReminders: Reminder[] = [
+export const initialReminders: Reminder[] = load('reminders', [
   { id: 1, cid: 1, d: TODAY, t: '14:00', n: '確認益生菌回購數量', k: '享回購' },
   { id: 2, cid: 2, d: '2026-10-07', t: '10:00', n: '送酵素試用包', k: '跟進' },
   { id: 3, cid: 3, d: '2026-10-09', t: '09:30', n: 'Zalo 確認首期出貨', k: '享回購' },
   { id: 4, cid: 5, d: TODAY, t: '19:00', n: '問 12 月是否恢復享回購', k: '享回購' },
-];
+]);
 
-export const initialDone: Reminder[] = [
+export const initialDone: Reminder[] = load('done', [
   { id: 90, cid: 4, d: TODAY, t: '09:00', n: '傳講座資訊給她', k: '跟進', at: '09:12' }
-];
+]);
 
-export const initialSubscriptions: Subscription[] = [
+export const initialSubscriptions: Subscription[] = load('subscriptions', [
   { id: 1, c: 1, p: 1, q: 1, cy: '每月', day: 20, st: '進行中', m: '變更', diff: '數量 2 盒 → 1 盒', ok: true, h: [{ d: '2026-10-05', x: '數量 2 盒 → 1 盒' }] },
   { id: 2, c: 3, p: 2, q: 1, cy: '每月', day: 9, st: '進行中', m: '新加入', diff: '新加入・每月 1 盒', ok: true, h: [{ d: '2026-10-01', x: '新加入：每月 1 盒' }] },
   { id: 3, c: 5, p: 3, q: 2, cy: '每 2 個月', day: 18, st: '暫停', m: '暫停', diff: '暫停 10–11 月', ok: false, h: [{ d: '2026-10-06', x: '暫停 10–11 月' }] },
   { id: 4, c: 6, p: 2, q: 1, cy: '每月', day: 25, st: '進行中', m: '無異動', diff: '', ok: true, h: [{ d: '2026-03-25', x: '新加入' }] }
-];
+]);
 
-export const initialSchedules: Schedule[] = [
+export const initialSchedules: Schedule[] = load('schedules', [
   { d: '2026-10-08', t: '11:00', x: '團隊早會' },
   { d: '2026-10-10', t: '14:00', x: '健康講座・台北場' },
-];
+]);
+
+export const saveAll = () => {
+  localStorage.setItem('crm_userProfile', JSON.stringify(userProfile));
+  localStorage.setItem('crm_products', JSON.stringify(initialProducts));
+  localStorage.setItem('crm_purchases', JSON.stringify(initialPurchases));
+  localStorage.setItem('crm_customers', JSON.stringify(initialCustomers));
+  localStorage.setItem('crm_reminders', JSON.stringify(initialReminders));
+  localStorage.setItem('crm_done', JSON.stringify(initialDone));
+  localStorage.setItem('crm_subscriptions', JSON.stringify(initialSubscriptions));
+  localStorage.setItem('crm_schedules', JSON.stringify(initialSchedules));
+};
