@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #FFFFFF;
+  --foreground: #25313A;
+  --card: #FFFFFF;
+  --card-foreground: #25313A;
+  --border: #E3EEF0;
+  
+  /* NuSkin default */
+  --primary: #1DB2BB;
+  --primary-foreground: #FFFFFF;
+  --primary-hover: #16939A;
+  
+  --muted: #F4F7F8;
+  --muted-foreground: #86909A;
+  
+  --accent: #E58A2E;
+  --accent-foreground: #FFFFFF;
+  
+  --destructive: #D2453F;
+  --destructive-foreground: #FFFFFF;
+}
+
+[data-theme="coke"] {
+  --primary: #E4002B;
+  --primary-hover: #C20024;
+  --border: #F3B3BF;
+}
+
+[data-theme="muji"] {
+  --primary: #7F0019;
+  --primary-hover: #600013;
+  --border: #D8C7B3;
+}
+
+[data-theme="hermes"] {
+  --primary: #F37021;
+  --primary-hover: #D55E15;
+  --border: #F6C6A3;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  letter-spacing: 0.02em;
+}
+
+/* Hide scrollbar */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
