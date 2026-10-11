@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { initialSubscriptions, initialCustomers, initialProducts, initialReminders, TODAY, checkHasUnreadNews } from '../data';
 
@@ -13,6 +13,71 @@ export default function SubscriptionView() {
   const [remTime, setRemTime] = useState('09:00');
   const [hasUnreadNews, setHasUnreadNews] = useState(checkHasUnreadNews);
 
+  // Dynamic Year & Month
+  const now = new Date();
+  const [currentYear, setCurrentYear] = useState(() => now.getFullYear());
+  const [currentMonth, setCurrentMonth] = useState(() => now.getMonth()); // 0 = Jan, 9 = Oct
+
+  const monthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+
+  const handlePrevMonth = () => {
+    if (currentMonth === 0) {
+      setCurrentYear(y => y - 1);
+      setCurrentMonth(11);
+    } else {
+      setCurrentMonth(m => m - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (currentMonth === 11) {
+      setCurrentYear(y => y + 1);
+      setCurrentMonth(0);
+    } else {
+      setCurrentMonth(m => m + 1);
+    }
+  };
+
+  const handleResetThisMonth = () => {
+    const today = new Date();
+    setCurrentYear(today.getFullYear());
+    setCurrentMonth(today.getMonth());
+  };
+
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const diffX = e.changedTouches[0].clientX - touchStartX.current;
+    const diffY = e.changedTouches[0].clientY - touchStartY.current;
+
+    // Horizontal swipe (左右滑動切換上下月)
+    if (Math.abs(diffX) > 35 && Math.abs(diffX) > Math.abs(diffY)) {
+      if (diffX < 0) {
+        handleNextMonth();
+      } else {
+        handlePrevMonth();
+      }
+    }
+    // Vertical swipe (上下滑動切換上下月)
+    else if (Math.abs(diffY) > 35 && Math.abs(diffY) > Math.abs(diffX)) {
+      if (diffY < 0) {
+        handleNextMonth();
+      } else {
+        handlePrevMonth();
+      }
+    }
+
+    touchStartX.current = null;
+    touchStartY.current = null;
+  };
+
   useEffect(() => {
     const handleUpdate = () => setSubs([...initialSubscriptions]);
     const handleNews = () => setHasUnreadNews(checkHasUnreadNews());
@@ -24,11 +89,40 @@ export default function SubscriptionView() {
     };
   }, []);
 
+  const getIsOk = (s: typeof subs[0]) => {
+    const stored = localStorage.getItem(`crm_sub_ok_${monthKey}_${s.id}`);
+    if (stored !== null) {
+      return stored === 'true';
+    }
+    if (monthKey === '2026-10') {
+      return s.ok;
+    }
+    const nowStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    if (monthKey < nowStr) return true;
+    return false;
+  };
+
+  const toggleOk = (id: number) => {
+    const item = initialSubscriptions.find(s => s.id === id);
+    if (item) {
+      const currentVal = getIsOk(item);
+      const newVal = !currentVal;
+      localStorage.setItem(`crm_sub_ok_${monthKey}_${id}`, String(newVal));
+
+      const nowStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      if (monthKey === nowStr || monthKey === '2026-10') {
+        item.ok = newVal;
+      }
+      setSubs([...initialSubscriptions]);
+      window.dispatchEvent(new Event('data-updated'));
+    }
+  };
+
   const filters = ['全部', '未核對', '有異動', '新加入', '變更', '暫停', '取消', '無異動'];
 
   const matchFilter = (s: typeof subs[0], f: string) => {
     if (f === '全部') return true;
-    if (f === '未核對') return !s.ok;
+    if (f === '未核對') return !getIsOk(s);
     if (f === '有異動') return s.m !== '無異動';
     return s.m === f;
   };
@@ -36,17 +130,8 @@ export default function SubscriptionView() {
   const list = subs.filter(s => matchFilter(s, filter));
   const count = (f: string) => subs.filter(s => matchFilter(s, f)).length;
   
-  const okCount = subs.filter(s => s.ok).length;
+  const okCount = subs.filter(s => getIsOk(s)).length;
   const activeCount = subs.filter(s => s.st === '進行中').length;
-
-  const toggleOk = (id: number) => {
-    const item = initialSubscriptions.find(s => s.id === id);
-    if (item) {
-      item.ok = !item.ok;
-      setSubs([...initialSubscriptions]);
-      window.dispatchEvent(new Event('data-updated'));
-    }
-  };
 
   const toggleOpen = (id: number) => {
     setOpenItems(prev => ({ ...prev, [id]: !prev[id] }));
@@ -68,7 +153,7 @@ export default function SubscriptionView() {
       return items.length > 0 ? items.join('\n') : '・無';
     };
 
-    const txt = `【2026年10月 享回購月結】\n\n訂閱中 ${activeCount} 位 ・ 本月異動 ${count('有異動')} 位\n\n■ 新加入\n${L(s => s.m === '新加入')}\n■ 變更\n${L(s => !['新加入', '暫停', '取消', '無異動'].includes(s.m))}\n■ 暫停\n${L(s => s.m === '暫停')}\n■ 取消\n${L(s => s.m === '取消')}\n■ 無異動\n${L(s => s.m === '無異動')}\n\n未核對：${subs.filter(s => !s.ok).map(s => initialCustomers.find(c => c.id === s.c)?.name).join('、') || '無 ✓'}`;
+    const txt = `【${currentYear}年${currentMonth + 1}月 享回購月結】\n\n訂閱中 ${activeCount} 位 ・ 本月異動 ${count('有異動')} 位\n\n■ 新加入\n${L(s => s.m === '新加入')}\n■ 變更\n${L(s => !['新加入', '暫停', '取消', '無異動'].includes(s.m))}\n■ 暫停\n${L(s => s.m === '暫停')}\n■ 取消\n${L(s => s.m === '取消')}\n■ 無異動\n${L(s => s.m === '無異動')}\n\n未核對：${subs.filter(s => !getIsOk(s)).map(s => initialCustomers.find(c => c.id === s.c)?.name).join('、') || '無 ✓'}`;
     
     setSummaryText(txt);
   };
@@ -134,8 +219,15 @@ export default function SubscriptionView() {
           )}
         </button>
         <div className="flex-1 min-w-0">
-          <div className="text-[22px] font-bold text-foreground tracking-wide">享回購月結</div>
-          <div className="text-[13px] text-muted-foreground mt-0.5">截止日 10/25</div>
+          <div className="text-[22px] font-bold text-foreground tracking-wide flex items-center gap-2">
+            享回購月結
+            {(currentYear !== now.getFullYear() || currentMonth !== now.getMonth()) && (
+              <button onClick={handleResetThisMonth} className="text-xs font-normal bg-primary/10 text-primary px-2 py-0.5 rounded-full hover:bg-primary/20 transition-colors">
+                回本月
+              </button>
+            )}
+          </div>
+          <div className="text-[13px] text-muted-foreground mt-0.5">截止日 {currentMonth + 1}/25</div>
         </div>
         <div className="flex items-center gap-3 mt-1 shrink-0">
           <button onClick={() => window.dispatchEvent(new Event('open-search'))} className="text-primary w-6 h-6 flex items-center justify-center">
@@ -149,16 +241,39 @@ export default function SubscriptionView() {
 
       {/* Dashboard Card */}
       <div className="px-4">
-        <div className="bg-card border border-border p-4 rounded-xl shadow-sm">
+        <div 
+          className="bg-card border border-border p-4 rounded-xl shadow-sm select-none cursor-grab active:cursor-grabbing"
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
           <div className="flex items-center">
-            <button className="w-8 h-8 flex items-center justify-center hover:bg-muted rounded-full">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m15 18-6-6 6-6"/></svg>
+            <button 
+              onClick={handlePrevMonth}
+              className="w-8 h-8 flex items-center justify-center hover:bg-muted text-foreground rounded-full active:scale-95 transition-all"
+              title="上個月"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m15 18-6-6 6-6"/></svg>
             </button>
-            <div className="flex-1 text-center font-medium">2026 年 10 月</div>
-            <button className="w-8 h-8 flex items-center justify-center opacity-30 cursor-not-allowed">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m9 18 6-6-6-6"/></svg>
+            <div className="flex-1 text-center font-medium flex items-center justify-center gap-2">
+              <span className="text-[16px] font-semibold text-foreground">{currentYear} 年 {currentMonth + 1} 月</span>
+              {(currentYear !== now.getFullYear() || currentMonth !== now.getMonth()) && (
+                <button 
+                  onClick={handleResetThisMonth}
+                  className="text-[11px] font-normal bg-primary/10 text-primary px-2 py-0.5 rounded-full hover:bg-primary/20 transition-colors"
+                >
+                  回本月
+                </button>
+              )}
+            </div>
+            <button 
+              onClick={handleNextMonth}
+              className="w-8 h-8 flex items-center justify-center hover:bg-muted text-foreground rounded-full active:scale-95 transition-all"
+              title="下個月"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6"/></svg>
             </button>
           </div>
+          <div className="text-[10px] text-muted-foreground text-center mt-1">可點擊按鈕或滑動切換月份</div>
           
           <div className="grid grid-cols-4 text-center mt-5">
             <div>
@@ -233,9 +348,9 @@ export default function SubscriptionView() {
                 </div>
                 <button 
                   onClick={() => toggleOk(s.id)} 
-                  className={`w-6 h-6 rounded-md border-2 shrink-0 flex items-center justify-center transition-colors ${s.ok ? 'bg-primary border-primary text-white' : 'border-border'}`}
+                  className={`w-6 h-6 rounded-md border-2 shrink-0 flex items-center justify-center transition-colors ${getIsOk(s) ? 'bg-primary border-primary text-white' : 'border-border'}`}
                 >
-                  {s.ok && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6 9 17l-5-5"/></svg>}
+                  {getIsOk(s) && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6 9 17l-5-5"/></svg>}
                 </button>
               </div>
 
