@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { initialReminders, initialDone, initialSubscriptions, initialSchedules, TODAY, initialCustomers, userProfile, checkHasUnreadNews } from '../data';
 
 export default function TodayView() {
   const [selectedDateStr, setSelectedDateStr] = useState(TODAY);
+  const [weekOffset, setWeekOffset] = useState(0);
   const [showDone, setShowDone] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [hasUnreadNews, setHasUnreadNews] = useState(checkHasUnreadNews);
@@ -13,12 +14,12 @@ export default function TodayView() {
     return () => window.removeEventListener('news-read-updated', handleNews);
   }, []);
 
-  // Generate 7 days of the current week (from Sunday to Saturday) based on system date
+  // Generate 7 days of the week based on system date + weekOffset
   const weekDays = useMemo(() => {
     const todayObj = new Date();
     const dayOfWeek = todayObj.getDay(); // 0 is Sunday
     const startOfWeek = new Date(todayObj);
-    startOfWeek.setDate(todayObj.getDate() - dayOfWeek);
+    startOfWeek.setDate(todayObj.getDate() - dayOfWeek + weekOffset * 7);
 
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(startOfWeek);
@@ -28,9 +29,74 @@ export default function TodayView() {
       const dayNum = d.getDate();
       const dateStr = `${y}-${m}-${String(dayNum).padStart(2, '0')}`;
       const wk = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
-      return { day: dayNum, dateStr, wk };
+      return { day: dayNum, dateStr, wk, y, m: d.getMonth() + 1 };
     });
-  }, []);
+  }, [weekOffset]);
+
+  const weekTitle = useMemo(() => {
+    if (!weekDays.length) return '';
+    const first = weekDays[0];
+    const last = weekDays[6];
+    if (first.y === last.y && first.m === last.m) {
+      return `${first.y}年 ${first.m}月`;
+    }
+    if (first.y === last.y) {
+      return `${first.y}年 ${first.m}月 - ${last.m}月`;
+    }
+    return `${first.y}年${first.m}月 - ${last.y}年${last.m}月`;
+  }, [weekDays]);
+
+  const handlePrevWeek = () => {
+    setWeekOffset(prev => prev - 1);
+    const cur = new Date(selectedDateStr);
+    if (!isNaN(cur.getTime())) {
+      cur.setDate(cur.getDate() - 7);
+      const y = cur.getFullYear();
+      const m = String(cur.getMonth() + 1).padStart(2, '0');
+      const d = String(cur.getDate()).padStart(2, '0');
+      setSelectedDateStr(`${y}-${m}-${d}`);
+    }
+  };
+
+  const handleNextWeek = () => {
+    setWeekOffset(prev => prev + 1);
+    const cur = new Date(selectedDateStr);
+    if (!isNaN(cur.getTime())) {
+      cur.setDate(cur.getDate() + 7);
+      const y = cur.getFullYear();
+      const m = String(cur.getMonth() + 1).padStart(2, '0');
+      const d = String(cur.getDate()).padStart(2, '0');
+      setSelectedDateStr(`${y}-${m}-${d}`);
+    }
+  };
+
+  const handleResetToday = () => {
+    setWeekOffset(0);
+    setSelectedDateStr(TODAY);
+  };
+
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const diffX = e.changedTouches[0].clientX - touchStartX.current;
+    const diffY = e.changedTouches[0].clientY - touchStartY.current;
+    if (Math.abs(diffX) > 35 && Math.abs(diffX) > Math.abs(diffY) * 1.3) {
+      if (diffX < 0) {
+        handleNextWeek();
+      } else {
+        handlePrevWeek();
+      }
+    }
+    touchStartX.current = null;
+    touchStartY.current = null;
+  };
 
   const over = initialReminders.filter(r => r.d < TODAY && r.k !== '享回購');
   const td = initialReminders.filter(r => r.d === selectedDateStr && r.k !== '享回購');
@@ -96,19 +162,56 @@ export default function TodayView() {
 
       <div className="flex-1 overflow-y-auto pb-24">
         {/* Date Strip */}
-        <div className="px-4 mt-2">
-          <div className="bg-card rounded-xl border border-border px-1 py-1 flex shadow-sm">
+        <div 
+          className="px-4 mt-2 select-none"
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
+          {/* Week navigation bar */}
+          <div className="flex items-center justify-between px-1 mb-1.5 text-xs text-muted-foreground font-medium">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-foreground text-[13px]">{weekTitle}</span>
+              {weekOffset !== 0 && (
+                <button 
+                  onClick={handleResetToday}
+                  className="text-primary text-[11px] font-medium bg-primary/10 px-2 py-0.5 rounded-full hover:bg-primary/20 transition-colors"
+                >
+                  回本週
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-muted-foreground mr-1 hidden sm:inline">可左右滑動切換週</span>
+              <button 
+                onClick={handlePrevWeek} 
+                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground active:scale-95 transition-all"
+                title="上一週"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m15 18-6-6 6-6"/></svg>
+              </button>
+              <button 
+                onClick={handleNextWeek} 
+                className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground active:scale-95 transition-all"
+                title="下一週"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-card rounded-xl border border-border px-1 py-1 flex shadow-sm cursor-grab active:cursor-grabbing">
             {weekDays.map(d => {
               const hasSch = initialSchedules.some(s => s.d === d.dateStr);
               const on = d.dateStr === selectedDateStr;
+              const isToday = d.dateStr === TODAY;
               return (
                 <button 
                   key={d.dateStr} 
                   onClick={() => setSelectedDateStr(d.dateStr)} 
-                  className={`flex-1 py-2 rounded-xl text-center transition-colors ${on ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-muted'}`}
+                  className={`flex-1 py-2 rounded-xl text-center transition-colors relative ${on ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-muted'}`}
                 >
                   <div className={`text-[12px] ${on ? 'opacity-90' : 'text-muted-foreground'}`}>{d.wk}</div>
-                  <div className="font-semibold mt-0.5">{d.day}</div>
+                  <div className={`font-semibold mt-0.5 ${isToday && !on ? 'text-primary font-bold' : ''}`}>{d.day}</div>
                   <div className="h-2 flex justify-center items-center mt-0.5">
                     {hasSch && <span className={`w-1 h-1 rounded-full ${on ? 'bg-white' : 'bg-accent'}`}></span>}
                   </div>
@@ -186,7 +289,7 @@ export default function TodayView() {
         )}
 
         <div className="px-5 mt-6 mb-2 text-[13px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center">
-          {selectedDateStr === TODAY ? '今日待辦' : `${parseInt(selectedDateStr.slice(-2))}日 待辦`}
+          {selectedDateStr === TODAY ? '今日待辦' : `${parseInt(selectedDateStr.slice(5, 7))}月${parseInt(selectedDateStr.slice(-2))}日 待辦`}
         </div>
         <div className="px-4 space-y-2 animate-fade-in">
           {sch.map(s => {

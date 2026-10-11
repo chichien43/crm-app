@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { initialSchedules, initialReminders, initialCustomers, initialSubscriptions, initialProducts, initialDone, TODAY, checkHasUnreadNews } from '../data';
 
 let cachedCalendarDate = TODAY;
@@ -30,12 +30,94 @@ export default function CalendarView() {
     cachedCalendarDate = selectedDate;
   }, [selectedDate]);
 
-  const daysInMonth = 31;
-  const startDay = 4; // Oct 1 is Thursday
+  // Year & Month state
+  const [currentYear, setCurrentYear] = useState(() => {
+    const d = new Date(cachedCalendarDate || TODAY);
+    return isNaN(d.getTime()) ? 2026 : d.getFullYear();
+  });
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const d = new Date(cachedCalendarDate || TODAY);
+    return isNaN(d.getTime()) ? 9 : d.getMonth();
+  });
+
+  const changeMonth = (delta: number) => {
+    let newYear = currentYear;
+    let newMonth = currentMonth + delta;
+    if (newMonth < 0) {
+      newYear -= 1;
+      newMonth = 11;
+    } else if (newMonth > 11) {
+      newYear += 1;
+      newMonth = 0;
+    }
+    setCurrentYear(newYear);
+    setCurrentMonth(newMonth);
+
+    // Keep same day if possible, or clamp to new month's days
+    const currDay = parseInt(selectedDate.slice(-2), 10) || 1;
+    const daysInNewMonth = new Date(newYear, newMonth + 1, 0).getDate();
+    const newDay = Math.min(currDay, daysInNewMonth);
+    const newDateStr = `${newYear}-${String(newMonth + 1).padStart(2, '0')}-${String(newDay).padStart(2, '0')}`;
+    setSelectedDate(newDateStr);
+  };
+
+  const goToToday = () => {
+    const now = new Date();
+    setCurrentYear(now.getFullYear());
+    setCurrentMonth(now.getMonth());
+    setSelectedDate(TODAY);
+  };
+
+  const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
+  const startDay = firstDayOfMonth.getDay(); // 0 is Sunday
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const blanks = Array.from({ length: startDay }, (_, i) => i);
 
-  const getDayStr = (d: number) => `2026-10-${d.toString().padStart(2, '0')}`;
+  const getDayStr = (d: number) => {
+    const mStr = String(currentMonth + 1).padStart(2, '0');
+    const dStr = String(d).padStart(2, '0');
+    return `${currentYear}-${mStr}-${dStr}`;
+  };
+
+  const isToday = (d: number) => getDayStr(d) === TODAY;
+
+  // Touch gesture handlers for vertical swipe (上下滑) and horizontal swipe
+  const touchStartY = useRef<number | null>(null);
+  const touchStartX = useRef<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartY.current === null || touchStartX.current === null) return;
+    const diffY = e.changedTouches[0].clientY - touchStartY.current;
+    const diffX = e.changedTouches[0].clientX - touchStartX.current;
+
+    // Vertical swipe (上下滑)
+    if (Math.abs(diffY) > 35 && Math.abs(diffY) > Math.abs(diffX)) {
+      if (diffY < 0) {
+        // Swiped UP -> Next month (往上滑看下個月)
+        changeMonth(1);
+      } else {
+        // Swiped DOWN -> Previous month (往下滑看上個月)
+        changeMonth(-1);
+      }
+    } 
+    // Horizontal swipe (左右滑也支援)
+    else if (Math.abs(diffX) > 35 && Math.abs(diffX) > Math.abs(diffY)) {
+      if (diffX < 0) {
+        changeMonth(1);
+      } else {
+        changeMonth(-1);
+      }
+    }
+
+    touchStartY.current = null;
+    touchStartX.current = null;
+  };
   
   const getDots = (date: string) => {
     const hasRem = initialReminders.some(r => r.d === date && r.k !== '享回購');
@@ -153,11 +235,18 @@ export default function CalendarView() {
             <span className="absolute -top-0.5 right-0 w-1.5 h-1.5 bg-destructive rounded-full"></span>
           )}
         </button>
-        <div className="flex-1">
+        <div className="flex-1 flex items-center gap-2">
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            2026年 10月
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m6 9 6 6 6-6"/></svg>
+            {currentYear}年 {currentMonth + 1}月
           </h1>
+          {(currentYear !== new Date().getFullYear() || currentMonth !== new Date().getMonth()) && (
+            <button 
+              onClick={goToToday}
+              className="text-xs bg-primary/10 text-primary font-medium px-2 py-0.5 rounded-full hover:bg-primary/20 transition-colors"
+            >
+              回本月
+            </button>
+          )}
         </div>
         <button onClick={() => window.dispatchEvent(new Event('open-settings'))} className="w-9 h-9 rounded-full bg-white border border-border flex items-center justify-center shrink-0 text-foreground hover:bg-muted transition-colors">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -167,7 +256,35 @@ export default function CalendarView() {
       <div className="flex-1 overflow-y-auto no-scrollbar">
         {view === '月' ? (
           <div className="px-4">
-            <div className="bg-white rounded-2xl border border-border p-3 shadow-sm mb-6">
+            <div 
+              className="bg-white rounded-2xl border border-border p-3 shadow-sm mb-6 select-none cursor-grab active:cursor-grabbing"
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+            >
+              {/* Calendar Month Navigation Header */}
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-border/50">
+                <button 
+                  onClick={() => changeMonth(-1)} 
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground py-1 px-2.5 rounded-lg hover:bg-muted active:scale-95 transition-all"
+                  title="上個月"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m15 18-6-6 6-6"/></svg>
+                  <span>上個月</span>
+                </button>
+                <div className="text-center">
+                  <span className="font-bold text-foreground text-[15px]">{currentYear}年 {currentMonth + 1}月</span>
+                  <div className="text-[10px] text-muted-foreground">可上下滑動切換月份</div>
+                </div>
+                <button 
+                  onClick={() => changeMonth(1)} 
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground py-1 px-2.5 rounded-lg hover:bg-muted active:scale-95 transition-all"
+                  title="下個月"
+                >
+                  <span>下個月</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m9 18 6-6-6-6"/></svg>
+                </button>
+              </div>
+
               <div className="grid grid-cols-7 mb-2">
                 {['日', '一', '二', '三', '四', '五', '六'].map(d => (
                   <div key={d} className="text-center text-[11px] font-medium text-muted-foreground">{d}</div>
@@ -179,7 +296,7 @@ export default function CalendarView() {
                 {days.map(d => {
                   const dateStr = getDayStr(d);
                   const isSelected = selectedDate === dateStr;
-                  const isToday = d === 8;
+                  const todayFlag = isToday(d);
                   const dots = getDots(dateStr);
                   
                   return (
@@ -188,7 +305,7 @@ export default function CalendarView() {
                       onClick={() => setSelectedDate(dateStr)}
                       className={`h-11 flex flex-col items-center justify-start pt-1 relative rounded-xl transition-all ${isSelected ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-muted'}`}
                     >
-                      <span className={`text-[14px] ${isToday && !isSelected ? 'font-bold text-primary underline underline-offset-4 decoration-2' : ''}`}>{d}</span>
+                      <span className={`text-[14px] ${todayFlag && !isSelected ? 'font-bold text-primary underline underline-offset-4 decoration-2' : ''}`}>{d}</span>
                       <div className="flex gap-0.5 mt-0.5">
                         {dots.hasSch && <span className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-[#64748B]'}`}></span>}
                         {dots.hasRem && <span className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-[#F59E0B]'}`}></span>}
