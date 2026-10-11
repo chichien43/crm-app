@@ -24,7 +24,9 @@ export default function CustomerView() {
     return () => window.removeEventListener('filter-tag', handleFilterTag);
   }, []);
 
-  const allTags = Array.from(new Set(initialCustomers.flatMap(c => c.tags)));
+  const customerTags = initialCustomers.flatMap(c => c.tags);
+  const purchaseTags = initialPurchases.flatMap(p => p.tags || []);
+  const allTags = Array.from(new Set([...customerTags, ...purchaseTags]));
 
   // Smart filters logic
   const hasRem = (c: Customer, filterFn: (r: any) => boolean) => initialReminders.some(r => r.cid === c.id && filterFn(r));
@@ -39,7 +41,12 @@ export default function CustomerView() {
   const currentSmartFilter = smartFilters.find(s => s.k === smartList)!;
 
   let list = initialCustomers.filter(currentSmartFilter.f);
-  if (tagF) list = list.filter(c => c.tags.includes(tagF));
+  if (tagF) {
+    list = list.filter(c => 
+      c.tags.includes(tagF) || 
+      initialPurchases.some(p => p.c === c.id && p.tags?.includes(tagF))
+    );
+  }
   
   // Sort by last contact
   list.sort((a, b) => (b.last ?? -1) - (a.last ?? -1));

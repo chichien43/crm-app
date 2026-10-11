@@ -19,6 +19,7 @@ export default function CustomerDetailView({ customerId, onBack, onOpenProduct }
   const [newTag, setNewTag] = useState('');
   const [editSvcData, setEditSvcData] = useState<any>(null);
   const [editBuyData, setEditBuyData] = useState<any>(null);
+  const [timelineTagFilter, setTimelineTagFilter] = useState<string | null>(null);
 
   const c = initialCustomers.find(x => x.id === Number(customerId));
   if (!c) return <div>Customer not found: {customerId}</div>;
@@ -29,16 +30,48 @@ export default function CustomerDetailView({ customerId, onBack, onOpenProduct }
   const events = initialPurchases.filter(b => b.c === c.id && b.v === '活動');
   const products = initialPurchases.filter(b => b.c === c.id && b.v !== '活動');
 
+  const customerPurchaseTags = Array.from(new Set(products.flatMap(b => b.tags || [])));
+
   // Timeline items
   const timelineItems = [
-    ...c.sv.map(s => ({ ref: s, type: 'svc', d: s.d, k: '服務', col: 'accent', i: 'edit', x: <><span className="text-muted-foreground">[{s.w}]</span> {s.x}</> })),
-    ...events.map(b => ({ ref: b, type: 'event', d: b.d, k: '活動', col: 'accent', i: 'flag', x: initialProducts.find(p => p.id === b.p)?.name })),
+    ...c.sv.map(s => ({ ref: s, type: 'svc', d: s.d, k: '服務', col: 'accent', i: 'edit', tags: [] as string[], x: <><span className="text-muted-foreground">[{s.w}]</span> {s.x}</> })),
+    ...events.map(b => ({ ref: b, type: 'event', d: b.d, k: '活動', col: 'accent', i: 'flag', tags: b.tags || [], x: initialProducts.find(p => p.id === b.p)?.name })),
     ...products.map(b => ({ 
       ref: b, type: 'buy', d: b.d, k: '購買', col: 'primary', i: 'cart', 
-      x: <>{initialProducts.find(p => p.id === b.p)?.name} × {b.q} {b.v === '享回購' && <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">享回購</span>}</> 
+      tags: b.tags || [],
+      x: (
+        <div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-medium">{initialProducts.find(p => p.id === b.p)?.name} × {b.q}</span>
+            {b.price !== undefined && <span className="text-[12px] text-muted-foreground font-medium">NT${b.price.toLocaleString()}</span>}
+            {b.v === '享回購' && <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">享回購</span>}
+            {b.v === '特惠活動' && <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium">特惠活動</span>}
+          </div>
+          {b.tags && b.tags.length > 0 && (
+            <div className="flex gap-1.5 flex-wrap mt-1">
+              {b.tags.map(t => (
+                <span 
+                  key={t} 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setTimelineTagFilter(timelineTagFilter === t ? null : t);
+                  }}
+                  className={`text-[11px] px-2 py-0.5 rounded-full font-medium transition-colors cursor-pointer ${timelineTagFilter === t ? 'bg-primary text-white' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
+                >
+                  #{t}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )
     })),
-    ...allSubs.flatMap(s => s.h.map(h => ({ ref: null, type: 'sub', d: h.d, k: '享回購異動', col: 'primary', i: 'repeat', x: `${initialProducts.find(p => p.id === s.p)?.name}：${h.x}` })))
+    ...allSubs.flatMap(s => s.h.map(h => ({ ref: null, type: 'sub', d: h.d, k: '享回購異動', col: 'primary', i: 'repeat', tags: [] as string[], x: `${initialProducts.find(p => p.id === s.p)?.name}：${h.x}` })))
   ].sort((a, b) => a.d < b.d ? 1 : -1);
+
+  const displayedTimeline = timelineTagFilter 
+    ? timelineItems.filter(item => item.type === 'buy' && (item as any).tags?.includes(timelineTagFilter))
+    : timelineItems;
 
   // Products grouping
   const prodGroups = products.reduce((acc, b) => {
@@ -199,42 +232,69 @@ export default function CustomerDetailView({ customerId, onBack, onOpenProduct }
       <div className="px-4 mt-4 animate-fade-in">
         
         {tab === 'tl' && (
-          timelineItems.length > 0 ? (
-            <div className="relative">
-              {timelineItems.map((item, i) => {
-                const isClickable = (item.type === 'svc' || item.type === 'buy') && item.ref;
-                return (
-                  <div 
-                    key={i} 
-                    className={`flex gap-3 relative pb-5 ${isClickable ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
-                    onClick={() => {
-                      if (isClickable) {
-                        if (item.type === 'svc') setEditSvcData(item.ref);
-                        if (item.type === 'buy') setEditBuyData(item.ref);
-                      }
-                    }}
+          <div>
+            {customerPurchaseTags.length > 0 && (
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-2.5 mb-3 no-scrollbar">
+                <span className="text-[12px] text-muted-foreground shrink-0 font-medium mr-0.5">標籤:</span>
+                <button 
+                  onClick={() => setTimelineTagFilter(null)}
+                  className={`text-[12px] px-2.5 py-1 rounded-full font-medium shrink-0 transition-colors ${
+                    timelineTagFilter === null ? 'bg-primary text-white shadow-sm' : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                  }`}
+                >
+                  全部
+                </button>
+                {customerPurchaseTags.map(t => (
+                  <button 
+                    key={t}
+                    onClick={() => setTimelineTagFilter(timelineTagFilter === t ? null : t)}
+                    className={`text-[12px] px-2.5 py-1 rounded-full font-medium shrink-0 transition-colors ${
+                      timelineTagFilter === t ? 'bg-primary text-white shadow-sm' : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                    }`}
                   >
-                    {i < timelineItems.length - 1 && <div className="absolute left-[13px] top-7 bottom-0 w-px bg-border"></div>}
-                    <div className={`w-7 h-7 rounded-full bg-${item.col}/10 text-${item.col} flex items-center justify-center shrink-0 z-10`}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        {item.i === 'edit' && <><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></>}
-                        {item.i === 'flag' && <path d="M4 22V4s1-1 4-1 5 2 8 2 4-1 4-1v11s-1 1-4 1-5-2-8-2-4 1-4 1"/>}
-                        {item.i === 'cart' && <><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></>}
-                        {item.i === 'repeat' && <><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></>}
-                      </svg>
-                    </div>
-                    <div className="flex-1 pt-0.5">
-                      <div className="text-[11px] text-muted-foreground flex justify-between">
-                        <span>{item.d.replace(/-/g, '/')} ・ {item.k}</span>
-                        {isClickable && <span className="text-primary text-[10px]">可修改</span>}
+                    #{t}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {displayedTimeline.length > 0 ? (
+              <div className="relative">
+                {displayedTimeline.map((item, i) => {
+                  const isClickable = (item.type === 'svc' || item.type === 'buy') && item.ref;
+                  return (
+                    <div 
+                      key={i} 
+                      className={`flex gap-3 relative pb-5 ${isClickable ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+                      onClick={() => {
+                        if (isClickable) {
+                          if (item.type === 'svc') setEditSvcData(item.ref);
+                          if (item.type === 'buy') setEditBuyData(item.ref);
+                        }
+                      }}
+                    >
+                      {i < displayedTimeline.length - 1 && <div className="absolute left-[13px] top-7 bottom-0 w-px bg-border"></div>}
+                      <div className={`w-7 h-7 rounded-full bg-${item.col}/10 text-${item.col} flex items-center justify-center shrink-0 z-10`}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          {item.i === 'edit' && <><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></>}
+                          {item.i === 'flag' && <path d="M4 22V4s1-1 4-1 5 2 8 2 4-1 4-1v11s-1 1-4 1-5-2-8-2-4 1-4 1"/>}
+                          {item.i === 'cart' && <><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></>}
+                          {item.i === 'repeat' && <><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></>}
+                        </svg>
                       </div>
-                      <div className="text-sm mt-0.5 text-foreground">{item.x}</div>
+                      <div className="flex-1 pt-0.5">
+                        <div className="text-[11px] text-muted-foreground flex justify-between">
+                          <span>{item.d.replace(/-/g, '/')} ・ {item.k}</span>
+                          {isClickable && <span className="text-primary text-[10px]">可修改</span>}
+                        </div>
+                        <div className="text-sm mt-0.5 text-foreground">{item.x}</div>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : <div className="text-center text-sm text-muted-foreground py-6">還沒有紀錄</div>
+                  );
+                })}
+              </div>
+            ) : <div className="text-center text-sm text-muted-foreground py-6">還沒有符合的紀錄</div>}
+          </div>
         )}
 
         {tab === 'pd' && (

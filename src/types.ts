@@ -33,6 +33,8 @@ export interface Purchase {
   d: string;
   q: number;
   v: string;
+  price?: number;
+  tags?: string[];
 }
 
 export interface Reminder {

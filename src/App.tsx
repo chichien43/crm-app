@@ -185,6 +185,9 @@ export default function App() {
             <span className="text-[10px] font-medium">客戶</span>
           </button>
         </div>
+
+        {/* Modal Root for Portals */}
+        <div id="modal-root" className="absolute inset-0 pointer-events-none z-40"></div>
             
             {showAddMenu && (
               <AddMenuView onClose={() => setShowAddMenu(false)} context={page?.type === 'customer' ? 'customer' : 'global'} />

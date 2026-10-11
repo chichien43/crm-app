@@ -11,6 +11,19 @@ export default function AddBuyView({ onClose, defaultCustomerId, mode = 'add', i
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [productKey, setProductKey] = useState(0);
 
+  const [price, setPrice] = useState<string>(() => {
+    if (initialData?.price !== undefined) return String(initialData.price);
+    if (initialData?.p) {
+      const p = initialProducts.find(x => x.id === initialData.p);
+      return p ? String(p.price) : '';
+    }
+    return '';
+  });
+
+  const [tags, setTags] = useState<string[]>(initialData?.tags || []);
+  const [newTagInput, setNewTagInput] = useState('');
+  const [showAddTag, setShowAddTag] = useState(false);
+
   const [error, setError] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -32,6 +45,7 @@ export default function AddBuyView({ onClose, defaultCustomerId, mode = 'add', i
     setError('');
     const c = initialCustomers.find((x: any) => x.id === (mode === 'edit' ? initialData.c : Number(cid)));
     const date = (document.getElementById('buy_d') as HTMLInputElement)?.value || TODAY;
+    const numPrice = price !== '' ? Number(price) : undefined;
 
     if (mode === 'add') {
       initialPurchases.unshift({
@@ -39,7 +53,9 @@ export default function AddBuyView({ onClose, defaultCustomerId, mode = 'add', i
         p: Number(selectedProduct),
         d: date,
         q: 1,
-        v: type
+        v: type,
+        price: numPrice,
+        tags: tags
       });
       if (c) c.last = 0; // Reset cold days on purchase
     } else if (mode === 'edit' && initialData) {
@@ -49,6 +65,8 @@ export default function AddBuyView({ onClose, defaultCustomerId, mode = 'add', i
         initialPurchases[idx].p = Number(selectedProduct);
         initialPurchases[idx].d = date;
         initialPurchases[idx].v = type;
+        initialPurchases[idx].price = numPrice;
+        initialPurchases[idx].tags = tags;
       }
     }
     
@@ -126,9 +144,10 @@ export default function AddBuyView({ onClose, defaultCustomerId, mode = 'add', i
             <div className="space-y-1.5">
               <label className="text-[13px] font-medium text-muted-foreground ml-1">消費類型</label>
               <div className="grid grid-cols-3 gap-2">
-                {['新購', '續約', '享回購'].map(t => (
+                {['新購', '特惠活動', '享回購'].map(t => (
                   <button 
                     key={t}
+                    type="button"
                     onClick={() => setType(t)}
                     className={`py-2.5 border rounded-xl text-[14px] font-medium ${type === t ? 'border-primary bg-primary/5 text-primary' : 'border-border bg-white text-muted-foreground hover:bg-gray-50'}`}
                   >
@@ -150,6 +169,10 @@ export default function AddBuyView({ onClose, defaultCustomerId, mode = 'add', i
                       setProductKey(Date.now()); // force re-render option list later
                     } else {
                       setSelectedProduct(e.target.value);
+                      const prod = initialProducts.find(p => p.id === Number(e.target.value));
+                      if (prod && !price) {
+                        setPrice(String(prod.price));
+                      }
                     }
                   }}
                   className="w-full bg-white border border-border rounded-xl px-4 py-3.5 text-[15px] focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none text-foreground"
@@ -167,8 +190,104 @@ export default function AddBuyView({ onClose, defaultCustomerId, mode = 'add', i
             </div>
             
             <div className="space-y-1.5">
-              <label className="text-[13px] font-medium text-muted-foreground ml-1">日期 <span className="text-destructive">*</span></label>
-              <input id="buy_d" type="date" defaultValue={TODAY} className="w-full bg-white border border-border rounded-xl px-4 py-3.5 text-[15px] focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" />
+              <label className="text-[13px] font-medium text-muted-foreground ml-1">價格</label>
+              <div className="relative">
+                <span className="absolute left-4 top-3.5 text-muted-foreground text-[15px]">NT$</span>
+                <input 
+                  id="buy_price" 
+                  type="number" 
+                  value={price} 
+                  onChange={(e) => setPrice(e.target.value)} 
+                  placeholder="請輸入金額" 
+                  className="w-full bg-white border border-border rounded-xl pl-12 pr-4 py-3.5 text-[15px] focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all text-foreground" 
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between">
+                <label className="text-[13px] font-medium text-muted-foreground ml-1">消費標籤</label>
+                {!showAddTag && (
+                  <button 
+                    type="button" 
+                    onClick={() => setShowAddTag(true)} 
+                    className="text-[12px] text-primary font-medium flex items-center gap-0.5 hover:underline"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    新增標籤
+                  </button>
+                )}
+              </div>
+
+              {showAddTag && (
+                <div className="flex gap-2 items-center bg-muted/60 p-2.5 rounded-xl border border-border">
+                  <input 
+                    type="text" 
+                    value={newTagInput} 
+                    onChange={e => setNewTagInput(e.target.value)} 
+                    placeholder="如：秋季特惠、買四送一、加價購" 
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const trimmed = newTagInput.trim();
+                        if (trimmed && !tags.includes(trimmed)) setTags([...tags, trimmed]);
+                        setNewTagInput('');
+                        setShowAddTag(false);
+                      }
+                    }}
+                    className="flex-1 bg-white border border-border rounded-lg px-3 py-1.5 text-[14px] focus:outline-none focus:border-primary text-foreground"
+                    autoFocus
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      const trimmed = newTagInput.trim();
+                      if (trimmed && !tags.includes(trimmed)) setTags([...tags, trimmed]);
+                      setNewTagInput('');
+                      setShowAddTag(false);
+                    }} 
+                    className="px-3 py-1.5 bg-primary text-white text-[13px] rounded-lg font-medium shadow-sm hover:bg-primary/90"
+                  >
+                    加入
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => { setShowAddTag(false); setNewTagInput(''); }} 
+                    className="px-2 py-1.5 text-muted-foreground text-[13px] hover:text-foreground"
+                  >
+                    取消
+                  </button>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2 pt-0.5">
+                {Array.from(new Set(['秋季特惠', '買四送一', '加價購', ...initialPurchases.flatMap(p => p.tags || []), ...tags])).map(t => {
+                  const selected = tags.includes(t);
+                  return (
+                    <button
+                      type="button"
+                      key={t}
+                      onClick={() => {
+                        if (selected) {
+                          setTags(tags.filter(x => x !== t));
+                        } else {
+                          setTags([...tags, t]);
+                        }
+                      }}
+                      className={`px-3 py-1.5 rounded-full text-[13px] font-medium transition-all flex items-center gap-1 ${
+                        selected 
+                          ? 'bg-primary text-white shadow-sm' 
+                          : 'bg-white border border-border text-muted-foreground hover:bg-gray-50'
+                      }`}
+                    >
+                      <span>#{t}</span>
+                      {selected && (
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
