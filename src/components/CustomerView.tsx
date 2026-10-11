@@ -11,13 +11,22 @@ export default function CustomerView() {
   };
   const [seg, setSeg] = useState<'客戶' | '產品'>('客戶');
   const [view, setView] = useState<'card' | 'list'>('card');
-  const [tagF, setTagF] = useState<string | null>(null);
+  const [selectedCustTags, setSelectedCustTags] = useState<string[]>([]);
   const [smartList, setSmartList] = useState('all');
   const [showDrawer, setShowDrawer] = useState(false);
 
+  // Product tab filter state
+  const [prodSearch, setProdSearch] = useState('');
+  const [selectedProdTags, setSelectedProdTags] = useState<string[]>([]);
+  const [prodTagMode, setProdTagMode] = useState<'and' | 'or'>('or');
+
   React.useEffect(() => {
     const handleFilterTag = (e: any) => {
-      setTagF(e.detail);
+      if (e.detail) {
+        setSelectedCustTags([e.detail]);
+      } else {
+        setSelectedCustTags([]);
+      }
       setSeg('客戶'); // Ensure we are on customer tab
     };
     window.addEventListener('filter-tag', handleFilterTag);
@@ -27,6 +36,30 @@ export default function CustomerView() {
   const customerTags = initialCustomers.flatMap(c => c.tags);
   const purchaseTags = initialPurchases.flatMap(p => p.tags || []);
   const allTags = Array.from(new Set([...customerTags, ...purchaseTags]));
+
+  const getProductTags = (p: any) => {
+    const pPurchases = initialPurchases.filter(b => b.p === p.id);
+    const pPurchaseTags = pPurchases.flatMap(b => b.tags || []);
+    return Array.from(new Set([...p.types, ...(p.tags || []), ...pPurchaseTags]));
+  };
+
+  const allProductTags = Array.from(new Set(initialProducts.flatMap(p => getProductTags(p))));
+
+  const toggleCustTag = (t: string) => {
+    if (selectedCustTags.includes(t)) {
+      setSelectedCustTags(selectedCustTags.filter(x => x !== t));
+    } else {
+      setSelectedCustTags([...selectedCustTags, t]);
+    }
+  };
+
+  const toggleProdTag = (t: string) => {
+    if (selectedProdTags.includes(t)) {
+      setSelectedProdTags(selectedProdTags.filter(x => x !== t));
+    } else {
+      setSelectedProdTags([...selectedProdTags, t]);
+    }
+  };
 
   // Smart filters logic
   const hasRem = (c: Customer, filterFn: (r: any) => boolean) => initialReminders.some(r => r.cid === c.id && filterFn(r));
@@ -41,11 +74,29 @@ export default function CustomerView() {
   const currentSmartFilter = smartFilters.find(s => s.k === smartList)!;
 
   let list = initialCustomers.filter(currentSmartFilter.f);
-  if (tagF) {
+  if (selectedCustTags.length > 0) {
     list = list.filter(c => 
-      c.tags.includes(tagF) || 
-      initialPurchases.some(p => p.c === c.id && p.tags?.includes(tagF))
+      selectedCustTags.some(t => 
+        c.tags.includes(t) || initialPurchases.some(p => p.c === c.id && p.tags?.includes(t))
+      )
     );
+  }
+
+  let filteredProducts = initialProducts;
+  if (prodSearch.trim()) {
+    const query = prodSearch.trim().toLowerCase();
+    filteredProducts = filteredProducts.filter(p => 
+      p.name.toLowerCase().includes(query) || 
+      getProductTags(p).some((t: string) => t.toLowerCase().includes(query))
+    );
+  }
+  if (selectedProdTags.length > 0) {
+    filteredProducts = filteredProducts.filter(p => {
+      const pTags = getProductTags(p);
+      return prodTagMode === 'and'
+        ? selectedProdTags.every(t => pTags.includes(t))
+        : selectedProdTags.some(t => pTags.includes(t));
+    });
   }
   
   // Sort by last contact
@@ -87,7 +138,7 @@ export default function CustomerView() {
               {smartFilters.map(s => (
                 <button 
                   key={s.k}
-                  onClick={() => { setSmartList(s.k); setTagF(null); setShowDrawer(false); }}
+                  onClick={() => { setSmartList(s.k); setSelectedCustTags([]); setShowDrawer(false); }}
                   className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-sm text-left transition-colors ${smartList === s.k ? 'bg-primary/10 text-primary font-medium' : 'text-foreground hover:bg-muted'}`}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
@@ -154,15 +205,88 @@ export default function CustomerView() {
             </div>
 
             <div className="px-4 flex gap-2 overflow-x-auto no-scrollbar py-1 shrink-0">
-              {['全部', ...allTags].map(t => (
+              <button 
+                onClick={() => setSelectedCustTags([])}
+                className={`border rounded-full px-3 py-1 text-[13px] whitespace-nowrap transition-colors ${selectedCustTags.length === 0 ? 'bg-primary text-primary-foreground border-primary' : 'bg-card border-border text-foreground hover:bg-gray-50'}`}
+              >
+                全部
+              </button>
+              {allTags.map(t => {
+                const selected = selectedCustTags.includes(t);
+                return (
+                  <button 
+                    key={t}
+                    onClick={() => toggleCustTag(t)}
+                    className={`border rounded-full px-3 py-1 text-[13px] whitespace-nowrap transition-colors flex items-center gap-1 ${
+                      selected ? 'bg-primary text-primary-foreground border-primary font-medium shadow-sm' : 'bg-card border-border text-foreground hover:bg-gray-50'
+                    }`}
+                  >
+                    <span>{t}</span>
+                    {selected && (
+                      <span className="text-[10px] ml-0.5">✕</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {seg === '產品' && (
+          <>
+            <div className="px-4 flex items-center gap-2 mt-1">
+              <div className="relative flex-1">
+                <svg className="absolute left-3.5 top-3 text-muted-foreground" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <input 
+                  type="text" 
+                  value={prodSearch} 
+                  onChange={e => setProdSearch(e.target.value)} 
+                  placeholder="搜尋產品或標籤..." 
+                  className="w-full bg-card border border-border rounded-xl pl-9 pr-8 py-2 text-sm focus:outline-none focus:border-primary shadow-sm text-foreground placeholder:text-muted-foreground"
+                />
+                {prodSearch && (
+                  <button onClick={() => setProdSearch('')} className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                  </button>
+                )}
+              </div>
+              <div className="bg-card border border-border rounded-xl h-10 px-3 flex items-center gap-1.5 text-xs text-muted-foreground shadow-sm shrink-0 font-medium">
+                <span className="text-foreground font-semibold">{filteredProducts.length}</span> 項
+              </div>
+            </div>
+
+            <div className="px-4 flex gap-2 overflow-x-auto no-scrollbar py-1 shrink-0 items-center">
+              <button 
+                onClick={() => setSelectedProdTags([])}
+                className={`border rounded-full px-3 py-1 text-[13px] whitespace-nowrap transition-colors ${selectedProdTags.length === 0 ? 'bg-primary text-primary-foreground border-primary' : 'bg-card border-border text-foreground hover:bg-gray-50'}`}
+              >
+                全部
+              </button>
+              {allProductTags.map(t => {
+                const selected = selectedProdTags.includes(t);
+                return (
+                  <button 
+                    key={t}
+                    onClick={() => toggleProdTag(t)}
+                    className={`border rounded-full px-3 py-1 text-[13px] whitespace-nowrap transition-colors flex items-center gap-1 ${
+                      selected ? 'bg-primary text-primary-foreground border-primary font-medium shadow-sm' : 'bg-card border-border text-foreground hover:bg-gray-50'
+                    }`}
+                  >
+                    <span>#{t}</span>
+                    {selected && (
+                      <span className="text-[10px] ml-0.5">✕</span>
+                    )}
+                  </button>
+                );
+              })}
+              {selectedProdTags.length > 1 && (
                 <button 
-                  key={t}
-                  onClick={() => setTagF(t === '全部' ? null : t)}
-                  className={`border rounded-full px-3 py-1 text-[13px] whitespace-nowrap transition-colors ${(tagF || '全部') === t ? 'bg-primary text-primary-foreground border-primary' : 'bg-card border-border text-foreground'}`}
+                  onClick={() => setProdTagMode(m => m === 'and' ? 'or' : 'and')} 
+                  className="text-[11px] text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-full font-medium whitespace-nowrap shrink-0 hover:bg-primary/20 transition-colors"
                 >
-                  {t}
+                  {prodTagMode === 'or' ? '符合任一 (OR)' : '符合全部 (AND)'}
                 </button>
-              ))}
+              )}
             </div>
           </>
         )}
@@ -230,32 +354,41 @@ export default function CustomerView() {
 
       {seg === '產品' && (
         <div className="flex-1 overflow-y-auto no-scrollbar px-4 space-y-2 pb-24 mt-2 min-h-0">
-          {initialProducts.map(p => {
+          {filteredProducts.map(p => {
             const buyers = new Set(initialPurchases.filter(b => b.p === p.id).map(b => b.c)).size;
             const subs = initialSubscriptions.filter(s => s.p === p.id && s.st === '進行中').length;
             const isEvent = p.types.includes('活動');
+            const pExtraTags = getProductTags(p).filter((t: string) => !p.types.includes(t));
             return (
-              <button key={p.id} onClick={() => onOpenProduct(p.id)} className="bg-card border border-border p-4 rounded-xl w-full text-left flex items-center gap-3 shadow-sm">
-                <div className="w-11 h-11 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+              <button key={p.id} onClick={() => onOpenProduct(p.id)} className="bg-card border border-border p-4 rounded-xl w-full text-left flex items-center gap-3 shadow-sm hover:border-primary/40 transition-all">
+                <div className="w-11 h-11 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
                   {isEvent ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M4 22V4s1-1 4-1 5 2 8 2 4-1 4-1v11s-1 1-4 1-5-2-8-2-4 1-4 1"/></svg> : 
                              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>}
                 </div>
-                <div className="flex-1">
-                  <div className="font-medium">{p.name}</div>
-                  <div className="flex gap-1 mt-1">
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-foreground truncate">{p.name}</div>
+                  <div className="flex gap-1 mt-1 flex-wrap items-center">
                     {p.types.map(t => (
                       <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{t}</span>
                     ))}
                     {p.date && <span className="text-[10px] px-1.5 py-0.5 rounded text-muted-foreground">{p.date.slice(5).replace('-','/')}</span>}
+                    {pExtraTags.map((t: string) => (
+                      <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">#{t}</span>
+                    ))}
                   </div>
                 </div>
-                <div className="text-right text-xs text-muted-foreground">
+                <div className="text-right text-xs text-muted-foreground shrink-0">
                   <div><b className="text-foreground text-[15px] font-medium">{buyers}</b> 位客戶</div>
                   {subs > 0 && <div className="text-primary mt-0.5">{subs} 位享回購</div>}
                 </div>
               </button>
-            )
+            );
           })}
+          {filteredProducts.length === 0 && (
+            <div className="text-center text-sm text-muted-foreground py-12">
+              沒有符合標籤或搜尋條件的產品
+            </div>
+          )}
         </div>
       )}
     </div>

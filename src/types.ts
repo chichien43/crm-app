@@ -5,6 +5,7 @@ export interface Product {
   price: number;
   date?: string;
   cy?: string;
+  tags?: string[];
 }
 
 export interface Customer {
