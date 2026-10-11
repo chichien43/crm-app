@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { initialSchedules, initialReminders, initialCustomers, initialSubscriptions, initialProducts, initialDone, TODAY, checkHasUnreadNews } from '../data';
+import { initialSchedules, initialReminders, initialCustomers, initialSubscriptions, initialProducts, initialDone, TODAY, checkHasUnreadNews, getSubscriptionMonthStatus, Subscription } from '../data';
 
 let cachedCalendarDate = TODAY;
 
@@ -122,15 +122,25 @@ export default function CalendarView() {
   const getDots = (date: string) => {
     const hasRem = initialReminders.some(r => r.d === date && r.k !== '享回購');
     const hasSch = initialSchedules.some(s => s.d === date);
+    const parts = date.split('-');
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10) - 1;
     const hasSub = initialReminders.some(r => r.d === date && r.k === '享回購') || 
-                   initialSubscriptions.some(s => s.st === '進行中' && s.day === parseInt(date.slice(-2)));
+                   initialSubscriptions.some(s => {
+                     const ms = getSubscriptionMonthStatus(s, y, m);
+                     return ms !== null && ms.st === '進行中' && ms.day === parseInt(date.slice(-2), 10);
+                   });
     return { hasRem, hasSch, hasSub };
   };
 
   const selectedSchedules = initialSchedules.filter(s => s.d === selectedDate);
   const selectedReminders = initialReminders.filter(r => r.d === selectedDate);
+  const selectedParts = selectedDate.split('-');
+  const selY = parseInt(selectedParts[0], 10);
+  const selM = parseInt(selectedParts[1], 10) - 1;
   const selectedSubs = initialSubscriptions
-    .filter(s => s.st === '進行中' && s.day === parseInt(selectedDate.slice(-2)))
+    .map(s => getSubscriptionMonthStatus(s, selY, selM))
+    .filter((s): s is Subscription => s !== null && s.st === '進行中' && s.day === parseInt(selectedDate.slice(-2), 10))
     .map(s => ({
       t: '10:00', x: `${initialProducts?.find(p => p.id === s.p)?.name} * ${s.q}`, type: 'sub' as const, uid: `sub-${s.id}`, n: '享回購出貨', cid: s.c, subId: s.id, d: selectedDate
     }));

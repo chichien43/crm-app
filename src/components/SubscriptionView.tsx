@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { initialSubscriptions, initialCustomers, initialProducts, initialReminders, TODAY, checkHasUnreadNews } from '../data';
+import { initialSubscriptions, initialCustomers, initialProducts, initialReminders, TODAY, checkHasUnreadNews, getSubscriptionMonthStatus } from '../data';
 
 export default function SubscriptionView() {
   const [subs, setSubs] = useState(initialSubscriptions);
@@ -118,6 +118,11 @@ export default function SubscriptionView() {
     }
   };
 
+  // Dynamically resolve each subscription's status for the currently viewed month
+  const monthlySubs = subs
+    .map(s => getSubscriptionMonthStatus(s, currentYear, currentMonth))
+    .filter((s): s is typeof subs[0] => s !== null);
+
   const filters = ['全部', '未核對', '有異動', '新加入', '變更', '暫停', '取消', '無異動'];
 
   const matchFilter = (s: typeof subs[0], f: string) => {
@@ -127,11 +132,11 @@ export default function SubscriptionView() {
     return s.m === f;
   };
 
-  const list = subs.filter(s => matchFilter(s, filter));
-  const count = (f: string) => subs.filter(s => matchFilter(s, f)).length;
+  const list = monthlySubs.filter(s => matchFilter(s, filter));
+  const count = (f: string) => monthlySubs.filter(s => matchFilter(s, f)).length;
   
-  const okCount = subs.filter(s => getIsOk(s)).length;
-  const activeCount = subs.filter(s => s.st === '進行中').length;
+  const okCount = monthlySubs.filter(s => getIsOk(s)).length;
+  const activeCount = monthlySubs.filter(s => s.st === '進行中').length;
 
   const toggleOpen = (id: number) => {
     setOpenItems(prev => ({ ...prev, [id]: !prev[id] }));
@@ -143,8 +148,8 @@ export default function SubscriptionView() {
   };
 
   const generateSummary = () => {
-    const L = (f: (s: typeof subs[0]) => boolean) => {
-      const items = subs.filter(f).map(s => {
+    const L = (f: (s: typeof monthlySubs[0]) => boolean) => {
+      const items = monthlySubs.filter(f).map(s => {
         const c = initialCustomers.find(x => x.id === s.c);
         const p = initialProducts.find(x => x.id === s.p);
         const diffText = s.diff && s.m !== '新加入' ? `（${s.diff}）` : '';
@@ -153,7 +158,7 @@ export default function SubscriptionView() {
       return items.length > 0 ? items.join('\n') : '・無';
     };
 
-    const txt = `【${currentYear}年${currentMonth + 1}月 享回購月結】\n\n訂閱中 ${activeCount} 位 ・ 本月異動 ${count('有異動')} 位\n\n■ 新加入\n${L(s => s.m === '新加入')}\n■ 變更\n${L(s => !['新加入', '暫停', '取消', '無異動'].includes(s.m))}\n■ 暫停\n${L(s => s.m === '暫停')}\n■ 取消\n${L(s => s.m === '取消')}\n■ 無異動\n${L(s => s.m === '無異動')}\n\n未核對：${subs.filter(s => !getIsOk(s)).map(s => initialCustomers.find(c => c.id === s.c)?.name).join('、') || '無 ✓'}`;
+    const txt = `【${currentYear}年${currentMonth + 1}月 享回購月結】\n\n訂閱中 ${activeCount} 位 ・ 本月異動 ${count('有異動')} 位\n\n■ 新加入\n${L(s => s.m === '新加入')}\n■ 變更\n${L(s => !['新加入', '暫停', '取消', '無異動'].includes(s.m))}\n■ 暫停\n${L(s => s.m === '暫停')}\n■ 取消\n${L(s => s.m === '取消')}\n■ 無異動\n${L(s => s.m === '無異動')}\n\n未核對：${monthlySubs.filter(s => !getIsOk(s)).map(s => initialCustomers.find(c => c.id === s.c)?.name).join('、') || '無 ✓'}`;
     
     setSummaryText(txt);
   };
@@ -169,7 +174,7 @@ export default function SubscriptionView() {
   const modalRoot = document.getElementById('modal-root');
 
   return (
-    <div className="animate-fade-in space-y-4 pb-8 relative">
+    <div className="animate-fade-in h-full flex flex-col relative overflow-hidden bg-background">
       {/* Toast */}
       {toastMsg && modalRoot && createPortal(
         <div className="absolute top-8 left-1/2 -translate-x-1/2 bg-[#25313A] text-white rounded-full px-4 py-2 text-sm z-[60] shadow-lg animate-fade-in whitespace-nowrap pointer-events-auto">
@@ -211,7 +216,7 @@ export default function SubscriptionView() {
       )}
 
       {/* Unified Top App Bar */}
-      <div className="px-5 pt-8 pb-3 flex items-start gap-4 shrink-0">
+      <div className="px-5 pt-8 pb-3 flex items-start gap-4 shrink-0 bg-background border-b border-border/40 z-10">
         <button onClick={() => window.dispatchEvent(new Event('open-news'))} className="relative text-primary mt-1 w-6 h-6 flex items-center justify-center shrink-0 hover:opacity-80 transition-opacity">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>
           {hasUnreadNews && (
@@ -238,6 +243,9 @@ export default function SubscriptionView() {
           </button>
         </div>
       </div>
+
+      {/* Scrollable Main Area */}
+      <div className="flex-1 overflow-y-auto space-y-4 pb-28">
 
       {/* Dashboard Card */}
       <div className="px-4">
@@ -423,6 +431,7 @@ export default function SubscriptionView() {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           產生月結摘要
         </button>
+      </div>
       </div>
     </div>
   );

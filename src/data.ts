@@ -102,6 +102,98 @@ export const initialSchedules: Schedule[] = load('schedules', [
   { d: '2026-10-10', t: '14:00', x: '健康講座・台北場' },
 ]);
 
+export const getSubscriptionMonthStatus = (sub: Subscription, year: number, month: number): Subscription | null => {
+  const targetVal = year * 12 + month;
+  const oct2026Val = 2026 * 12 + 9;
+
+  if (sub.c === 5 || (sub.diff && (sub.diff.includes('10–11') || sub.diff.includes('10-11')))) {
+    const pauseStart = 2026 * 12 + 9;
+    const pauseEnd = 2026 * 12 + 10;
+    if (targetVal >= pauseStart && targetVal <= pauseEnd) {
+      return {
+        ...sub,
+        st: '暫停',
+        m: '暫停',
+        diff: '暫停 10–11 月'
+      };
+    } else {
+      return {
+        ...sub,
+        st: '進行中',
+        m: '無異動',
+        diff: ''
+      };
+    }
+  }
+
+  if (sub.c === 1 || (sub.h && sub.h.some(h => h.d.startsWith('2026-10') && h.x.includes('數量')))) {
+    if (targetVal === oct2026Val) {
+      return {
+        ...sub,
+        st: '進行中',
+        m: '變更',
+        diff: '數量 2 盒 → 1 盒',
+        q: 1
+      };
+    } else if (targetVal > oct2026Val) {
+      return {
+        ...sub,
+        st: '進行中',
+        m: '無異動',
+        diff: '',
+        q: 1
+      };
+    } else {
+      return {
+        ...sub,
+        st: '進行中',
+        m: '無異動',
+        diff: '',
+        q: 2
+      };
+    }
+  }
+
+  if (sub.c === 3 || sub.m === '新加入') {
+    if (targetVal === oct2026Val) {
+      return {
+        ...sub,
+        st: '進行中',
+        m: '新加入',
+        diff: sub.diff || '新加入・每月 1 盒'
+      };
+    } else if (targetVal > oct2026Val) {
+      return {
+        ...sub,
+        st: '進行中',
+        m: '無異動',
+        diff: ''
+      };
+    } else {
+      return null;
+    }
+  }
+
+  const changeDate = sub.h && sub.h[0]?.d ? sub.h[0].d : null;
+  if (changeDate) {
+    const [cy, cm] = changeDate.split('-').map(Number);
+    const changeVal = cy * 12 + (cm - 1);
+    if (targetVal === changeVal) {
+      return { ...sub };
+    } else if (targetVal > changeVal) {
+      if (sub.st === '進行中') {
+        return {
+          ...sub,
+          m: '無異動',
+          diff: ''
+        };
+      }
+    }
+  }
+
+  return { ...sub, m: sub.st === '進行中' ? '無異動' : sub.m };
+};
+
 export const saveAll = () => {
   localStorage.setItem('crm_userProfile', JSON.stringify(userProfile));
   localStorage.setItem('crm_products', JSON.stringify(initialProducts));
