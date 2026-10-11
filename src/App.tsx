@@ -20,7 +20,7 @@ import SearchView from './components/SearchView';
 
 export default function App() {
   const [_tick, setTick] = useState(0);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [theme, setTheme] = useState('nuskin');
   const [activeTab, setActiveTab] = useState('today');
   const [page, setPage] = useState<{ type: string, id: number } | null>(null);

@@ -104,3 +104,80 @@ export const saveAll = () => {
   localStorage.setItem('crm_subscriptions', JSON.stringify(initialSubscriptions));
   localStorage.setItem('crm_schedules', JSON.stringify(initialSchedules));
 };
+
+export const getExportPayload = () => {
+  return {
+    appName: '直銷團隊專屬 CRM',
+    version: '1.0',
+    exportedAt: new Date().toISOString(),
+    userProfile,
+    products: initialProducts,
+    purchases: initialPurchases,
+    customers: initialCustomers,
+    reminders: initialReminders,
+    done: initialDone,
+    subscriptions: initialSubscriptions,
+    schedules: initialSchedules,
+  };
+};
+
+export const importBackupPayload = (data: any) => {
+  if (!data || typeof data !== 'object') {
+    throw new Error('檔案格式錯誤：無法辨識的備份資料');
+  }
+
+  const counts = {
+    customers: 0,
+    purchases: 0,
+    products: 0,
+    subscriptions: 0
+  };
+
+  if (data.userProfile && typeof data.userProfile === 'object') {
+    Object.assign(userProfile, data.userProfile);
+  }
+
+  if (Array.isArray(data.customers)) {
+    initialCustomers.length = 0;
+    initialCustomers.push(...data.customers);
+    counts.customers = data.customers.length;
+  }
+
+  if (Array.isArray(data.purchases)) {
+    initialPurchases.length = 0;
+    initialPurchases.push(...data.purchases);
+    counts.purchases = data.purchases.length;
+  }
+
+  if (Array.isArray(data.products)) {
+    initialProducts.length = 0;
+    initialProducts.push(...data.products);
+    counts.products = data.products.length;
+  }
+
+  if (Array.isArray(data.subscriptions)) {
+    initialSubscriptions.length = 0;
+    initialSubscriptions.push(...data.subscriptions);
+    counts.subscriptions = data.subscriptions.length;
+  }
+
+  if (Array.isArray(data.reminders)) {
+    initialReminders.length = 0;
+    initialReminders.push(...data.reminders);
+  }
+
+  if (Array.isArray(data.done)) {
+    initialDone.length = 0;
+    initialDone.push(...data.done);
+  }
+
+  if (Array.isArray(data.schedules)) {
+    initialSchedules.length = 0;
+    initialSchedules.push(...data.schedules);
+  }
+
+  saveAll();
+  window.dispatchEvent(new Event('data-updated'));
+  return counts;
+};
+

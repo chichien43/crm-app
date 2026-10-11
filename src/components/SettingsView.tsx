@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { userProfile } from '../data';
+import React, { useEffect, useState, useRef } from 'react';
+import { userProfile, getExportPayload, importBackupPayload } from '../data';
 
 export default function SettingsView({ 
   onClose, 
@@ -11,6 +11,8 @@ export default function SettingsView({
   setTheme: (t: string) => void 
 }) {
   const [isVisible, setIsVisible] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setIsVisible(true);
@@ -21,9 +23,79 @@ export default function SettingsView({
     setTimeout(onClose, 300);
   };
 
+  const showFeedback = (type: 'success' | 'error', message: string) => {
+    setFeedback({ type, message });
+    setTimeout(() => {
+      setFeedback(prev => (prev?.message === message ? null : prev));
+    }, 4500);
+  };
+
+  const handleExportJson = () => {
+    try {
+      const data = getExportPayload();
+      const jsonString = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const now = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const filename = `CRM_備份_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.json`;
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      showFeedback('success', `✅ 已下載備份檔案：${filename}`);
+    } catch (e: any) {
+      showFeedback('error', `匯出失敗：${e.message || '未知錯誤'}`);
+    }
+  };
+
+  const handleCopyJson = async () => {
+    try {
+      const data = getExportPayload();
+      const jsonString = JSON.stringify(data, null, 2);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(jsonString);
+      } else {
+        const textArea = document.createElement('textarea');
+        textArea.value = jsonString;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+      }
+      showFeedback('success', '📋 備份代碼已複製到剪貼簿！可貼至手機備忘錄或通訊軟體保存。');
+    } catch (e: any) {
+      showFeedback('error', '複製失敗，請使用「下載檔案」方式。');
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const parsed = JSON.parse(text);
+        const counts = importBackupPayload(parsed);
+        showFeedback('success', `🎉 資料還原成功！已載入 ${counts.customers} 位客戶、${counts.purchases} 筆消費紀錄。`);
+      } catch (err: any) {
+        showFeedback('error', `還原失敗：${err.message || '無效的備份格式'}`);
+      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    reader.readAsText(file);
+  };
+
   const themes = [
     { id: 'nuskin', name: 'NUSKIN 藍', color: '#0085CA' },
-    { id: 'muji', name: 'Muji 植萃', color: '#7A1F1F' }, // Muji red/brown
+    { id: 'muji', name: 'Muji 植萃', color: '#7A1F1F' },
     { id: 'coke', name: 'CocaCola 經典', color: '#F40009' },
     { id: 'hermes', name: 'Hermes 橘', color: '#F37021' },
   ];
@@ -101,10 +173,75 @@ export default function SettingsView({
                   />
                 </div>
               </div>
-              <div className="text-[12px] text-muted-foreground bg-muted/50 p-3 rounded-lg flex gap-2 items-start leading-relaxed">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 mt-0.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                <span>目前的架構為「手機地端版」，所有資料皆安全地儲存於您的設備上，不需網路即可快速運作。未來若有團隊協作需求，可升級至雲端版進行多人同步。</span>
+            </div>
+          </section>
+
+          {/* 資料儲存與備份匯出 */}
+          <section>
+            <div className="text-[13px] font-semibold text-muted-foreground uppercase tracking-wider mb-3 ml-1">資料儲存與備份匯出</div>
+            <div className="bg-white rounded-2xl border border-border p-4 space-y-4">
+              
+              {/* 儲存機制解說卡片 */}
+              <div className="text-[12px] text-muted-foreground bg-primary/5 border border-primary/15 p-3.5 rounded-xl space-y-1.5 leading-relaxed">
+                <div className="flex items-center gap-2 font-semibold text-primary text-[13px]">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  <span>100% 手機本機儲存・極致隱私安全</span>
+                </div>
+                <p>
+                  您的所有客戶名單、購買紀錄、行程與享回購排程資料，皆直接保存在您目前的<span className="font-semibold text-foreground">手機瀏覽器內部空間 (Local Storage)</span>。
+                </p>
+                <p className="text-[11px] text-muted-foreground/90">
+                  💡 系統不會將您的私密客戶資料上傳到外部伺服器。若需更換新手機或清理瀏覽紀錄，請善用下方「匯出備份檔案」隨時下載保存。
+                </p>
               </div>
+
+              {/* 操作反饋提示 */}
+              {feedback && (
+                <div className={`p-3 rounded-xl text-[13px] flex items-start justify-between gap-2 transition-all ${feedback.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                  <div className="flex-1 font-medium">{feedback.message}</div>
+                  <button onClick={() => setFeedback(null)} className="text-xs opacity-60 hover:opacity-100 p-0.5">✕</button>
+                </div>
+              )}
+
+              {/* 匯出按鈕群 */}
+              <div className="space-y-2">
+                <button 
+                  onClick={handleExportJson}
+                  className="w-full flex items-center justify-between p-3.5 rounded-xl bg-primary text-primary-foreground font-medium hover:bg-primary/90 transition-all shadow-sm active:scale-[0.99]"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <span>匯出備份檔案 (.json)</span>
+                  </div>
+                  <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full font-normal">下載檔案</span>
+                </button>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button 
+                    onClick={handleCopyJson}
+                    className="flex items-center justify-center gap-1.5 p-3 rounded-xl border border-border bg-gray-50 hover:bg-white text-foreground text-[13px] font-medium transition-colors"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                    <span>複製備份文字</span>
+                  </button>
+
+                  <button 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center justify-center gap-1.5 p-3 rounded-xl border border-border bg-gray-50 hover:bg-white text-foreground text-[13px] font-medium transition-colors"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <span>還原備份檔案</span>
+                  </button>
+                  <input 
+                    ref={fileInputRef}
+                    type="file" 
+                    accept=".json,application/json" 
+                    className="hidden" 
+                    onChange={handleFileChange}
+                  />
+                </div>
+              </div>
+
             </div>
           </section>
 
@@ -142,11 +279,12 @@ export default function SettingsView({
             </div>
           </section>
 
-          <div className="pt-8">
-            <button onClick={() => { window.dispatchEvent(new Event('logout')); onClose(); }} className="w-full py-3.5 bg-white text-destructive border border-border rounded-xl font-medium shadow-sm">
-              登出帳號
-            </button>
-            <div className="text-center mt-6 text-xs text-muted-foreground">
+          <div className="pt-4 pb-8 text-center space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200/60 rounded-full text-[12px] font-medium">
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+              本機離線模式運作中・無須登入
+            </div>
+            <div className="text-xs text-muted-foreground">
               直銷團隊專屬 CRM v1.0.0
             </div>
           </div>
