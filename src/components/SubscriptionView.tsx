@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { initialSubscriptions, initialCustomers, initialProducts, initialReminders, TODAY } from '../data';
 
@@ -11,6 +11,12 @@ export default function SubscriptionView() {
   const [remId, setRemId] = useState<number | null>(null);
   const [remDate, setRemDate] = useState(TODAY);
   const [remTime, setRemTime] = useState('09:00');
+
+  useEffect(() => {
+    const handleUpdate = () => setSubs([...initialSubscriptions]);
+    window.addEventListener('data-updated', handleUpdate);
+    return () => window.removeEventListener('data-updated', handleUpdate);
+  }, []);
 
   const filters = ['全部', '未核對', '有異動', '新加入', '變更', '暫停', '取消', '無異動'];
 
@@ -28,7 +34,12 @@ export default function SubscriptionView() {
   const activeCount = subs.filter(s => s.st === '進行中').length;
 
   const toggleOk = (id: number) => {
-    setSubs(subs.map(s => s.id === id ? { ...s, ok: !s.ok } : s));
+    const item = initialSubscriptions.find(s => s.id === id);
+    if (item) {
+      item.ok = !item.ok;
+      setSubs([...initialSubscriptions]);
+      window.dispatchEvent(new Event('data-updated'));
+    }
   };
 
   const toggleOpen = (id: number) => {

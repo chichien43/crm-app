@@ -12,7 +12,7 @@ export default function TodayView() {
   const td = initialReminders.filter(r => r.d === selectedDateStr && r.k !== '享回購');
   const done = initialDone.filter(r => r.d === selectedDateStr);
   const sch = initialSchedules.filter(s => s.d === selectedDateStr);
-  const chk = initialSubscriptions.filter(s => s.d === selectedDateStr && !s.ok);
+  const subUnchecked = initialSubscriptions.filter(s => !s.ok);
 
   const getCustomer = (id: number) => initialCustomers.find(c => c.id === id);
 
@@ -104,7 +104,7 @@ export default function TodayView() {
             <div className="text-[11px] text-muted-foreground mt-0.5 leading-tight">今日<br/>行程</div>
           </div>
           <div onClick={() => window.dispatchEvent(new Event('nav-sub'))} className="bg-card border border-border p-2.5 rounded-xl text-center shadow-sm cursor-pointer hover:bg-muted transition-all">
-            <div className="text-[22px] font-light text-[#0f172a] leading-tight">{initialSubscriptions.filter(s => s.d === TODAY && !s.ok).length}</div>
+            <div className={`text-[22px] font-light leading-tight ${subUnchecked.length > 0 ? 'text-primary' : 'text-foreground'}`}>{subUnchecked.length}</div>
             <div className="text-[11px] text-muted-foreground mt-0.5 leading-tight">享回購<br/>待核對</div>
           </div>
         </div>
@@ -115,7 +115,10 @@ export default function TodayView() {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-foreground"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
               <span className="font-medium text-[15px] text-foreground">10月 享回購排程</span>
             </div>
-            <div className="text-[12px] text-muted-foreground flex items-center gap-1">還有 17 筆未結 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6"/></svg></div>
+            <div className="text-[12px] text-muted-foreground flex items-center gap-1">
+              {subUnchecked.length > 0 ? `還有 ${subUnchecked.length} 筆未核對` : '已全數核對完成'}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6"/></svg>
+            </div>
           </button>
         </div>
 
