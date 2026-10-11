@@ -1,6 +1,14 @@
 import { Product, Customer, Purchase, Reminder, Subscription, Schedule } from './types';
 
-export const TODAY = '2026-10-08';
+const getSystemToday = () => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+export const TODAY = getSystemToday();
 
 const load = (key, defaultData) => {
   try {
@@ -180,4 +188,18 @@ export const importBackupPayload = (data: any) => {
   window.dispatchEvent(new Event('data-updated'));
   return counts;
 };
+
+export const ALL_NEWS_IDS = ['sub-deadline', 'activity-beauty', 'rem-status', 'feature-backup', 'system-security'];
+
+export const checkHasUnreadNews = (): boolean => {
+  try {
+    const saved = localStorage.getItem('crm_read_news');
+    if (!saved) return true;
+    const readIds: string[] = JSON.parse(saved);
+    return ALL_NEWS_IDS.some(id => !readIds.includes(id));
+  } catch {
+    return true;
+  }
+};
+
 

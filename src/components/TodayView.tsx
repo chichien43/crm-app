@@ -1,12 +1,36 @@
-import React, { useState } from 'react';
-import { initialReminders, initialDone, initialSubscriptions, initialSchedules, TODAY, initialCustomers, userProfile } from '../data';
+import React, { useState, useEffect, useMemo } from 'react';
+import { initialReminders, initialDone, initialSubscriptions, initialSchedules, TODAY, initialCustomers, userProfile, checkHasUnreadNews } from '../data';
 
 export default function TodayView() {
-  const [selectedDay, setSelectedDay] = useState(8); // Default to today 8th
+  const [selectedDateStr, setSelectedDateStr] = useState(TODAY);
   const [showDone, setShowDone] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [hasUnreadNews, setHasUnreadNews] = useState(checkHasUnreadNews);
 
-  const selectedDateStr = `2026-10-${String(selectedDay).padStart(2, '0')}`;
+  useEffect(() => {
+    const handleNews = () => setHasUnreadNews(checkHasUnreadNews());
+    window.addEventListener('news-read-updated', handleNews);
+    return () => window.removeEventListener('news-read-updated', handleNews);
+  }, []);
+
+  // Generate 7 days of the current week (from Sunday to Saturday) based on system date
+  const weekDays = useMemo(() => {
+    const todayObj = new Date();
+    const dayOfWeek = todayObj.getDay(); // 0 is Sunday
+    const startOfWeek = new Date(todayObj);
+    startOfWeek.setDate(todayObj.getDate() - dayOfWeek);
+
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(startOfWeek);
+      d.setDate(startOfWeek.getDate() + i);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const dayNum = d.getDate();
+      const dateStr = `${y}-${m}-${String(dayNum).padStart(2, '0')}`;
+      const wk = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()];
+      return { day: dayNum, dateStr, wk };
+    });
+  }, []);
 
   const over = initialReminders.filter(r => r.d < TODAY && r.k !== '享回購');
   const td = initialReminders.filter(r => r.d === selectedDateStr && r.k !== '享回購');
@@ -20,7 +44,7 @@ export default function TodayView() {
     const idx = initialReminders.findIndex(r => r.id === id);
     if (idx >= 0) {
       const [r] = initialReminders.splice(idx, 1);
-      initialDone.unshift({ ...r, d: TODAY, at: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }) });
+      initialDone.unshift({ ...r, d: selectedDateStr, at: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }) });
       window.dispatchEvent(new Event('data-updated'));
     }
   };
@@ -49,7 +73,9 @@ export default function TodayView() {
       <div className="pt-12 pb-3 px-5 flex items-start gap-3.5 shrink-0 bg-white/80 backdrop-blur-md z-10 sticky top-0">
         <button onClick={() => window.dispatchEvent(new Event('open-news'))} className="relative text-primary mt-1 w-6 h-6 flex items-center justify-center shrink-0 hover:opacity-80 transition-opacity">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>
-          <span className="absolute -top-0.5 right-0 w-1.5 h-1.5 bg-destructive rounded-full"></span>
+          {hasUnreadNews && (
+            <span className="absolute -top-0.5 right-0 w-1.5 h-1.5 bg-destructive rounded-full"></span>
+          )}
         </button>
         <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-bold text-foreground tracking-tight">{greeting}，{userProfile.name}</h1>
@@ -72,19 +98,22 @@ export default function TodayView() {
         {/* Date Strip */}
         <div className="px-4 mt-2">
           <div className="bg-card rounded-xl border border-border px-1 py-1 flex shadow-sm">
-            {[4,5,6,7,8,9,10].map(d => {
-              const hasSch = initialSchedules.some(s => s.d === `2026-10-${String(d).padStart(2, '0')}`);
-              const on = d === selectedDay;
-              const wk = ['日','一','二','三','四','五','六'][new Date(2026, 9, d).getDay()];
+            {weekDays.map(d => {
+              const hasSch = initialSchedules.some(s => s.d === d.dateStr);
+              const on = d.dateStr === selectedDateStr;
               return (
-                <button key={d} onClick={() => setSelectedDay(d)} className={`flex-1 py-2 rounded-xl text-center transition-colors ${on ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-muted'}`}>
-                  <div className={`text-[12px] ${on ? 'opacity-90' : 'text-muted-foreground'}`}>{wk}</div>
-                  <div className="font-semibold mt-0.5">{d}</div>
+                <button 
+                  key={d.dateStr} 
+                  onClick={() => setSelectedDateStr(d.dateStr)} 
+                  className={`flex-1 py-2 rounded-xl text-center transition-colors ${on ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-muted'}`}
+                >
+                  <div className={`text-[12px] ${on ? 'opacity-90' : 'text-muted-foreground'}`}>{d.wk}</div>
+                  <div className="font-semibold mt-0.5">{d.day}</div>
                   <div className="h-2 flex justify-center items-center mt-0.5">
                     {hasSch && <span className={`w-1 h-1 rounded-full ${on ? 'bg-white' : 'bg-accent'}`}></span>}
                   </div>
                 </button>
-              )
+              );
             })}
           </div>
         </div>
@@ -157,7 +186,7 @@ export default function TodayView() {
         )}
 
         <div className="px-5 mt-6 mb-2 text-[13px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center">
-          {selectedDay === 8 ? '今日待辦' : `${selectedDay}日 待辦`}
+          {selectedDateStr === TODAY ? '今日待辦' : `${parseInt(selectedDateStr.slice(-2))}日 待辦`}
         </div>
         <div className="px-4 space-y-2 animate-fade-in">
           {sch.map(s => {

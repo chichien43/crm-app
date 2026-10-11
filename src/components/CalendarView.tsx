@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { initialSchedules, initialReminders, initialCustomers, initialSubscriptions, initialProducts, initialDone, TODAY } from '../data';
+import { initialSchedules, initialReminders, initialCustomers, initialSubscriptions, initialProducts, initialDone, TODAY, checkHasUnreadNews } from '../data';
 
 let cachedCalendarDate = TODAY;
 
@@ -9,6 +9,13 @@ export default function CalendarView() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [remId, setRemId] = useState<string | null>(null);
+  const [hasUnreadNews, setHasUnreadNews] = useState(checkHasUnreadNews);
+
+  useEffect(() => {
+    const handleNews = () => setHasUnreadNews(checkHasUnreadNews());
+    window.addEventListener('news-read-updated', handleNews);
+    return () => window.removeEventListener('news-read-updated', handleNews);
+  }, []);
 
   // Edit states
   const [editTitle, setEditTitle] = useState('');
@@ -142,7 +149,9 @@ export default function CalendarView() {
       <div className="px-5 pt-8 pb-3 flex items-start gap-4 shrink-0">
         <button onClick={() => window.dispatchEvent(new Event('open-news'))} className="relative text-primary mt-1 w-6 h-6 flex items-center justify-center shrink-0 hover:opacity-80 transition-opacity">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>
-          <span className="absolute -top-0.5 right-0 w-1.5 h-1.5 bg-destructive rounded-full"></span>
+          {hasUnreadNews && (
+            <span className="absolute -top-0.5 right-0 w-1.5 h-1.5 bg-destructive rounded-full"></span>
+          )}
         </button>
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">

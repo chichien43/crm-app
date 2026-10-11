@@ -122,10 +122,10 @@ export default function NewsView({ onClose }: { onClose: () => void }) {
         onClick={handleClose}
       />
       
-      {/* Bottom Sheet resting directly above bottom nav (74px) */}
+      {/* Fixed Full-Height Sheet resting directly above bottom nav (74px) */}
       <div 
-        style={{ bottom: '74px', maxHeight: 'calc(100% - 90px)' }}
-        className={`absolute left-0 right-0 bg-white rounded-t-[28px] pointer-events-auto flex flex-col shadow-2xl transition-transform duration-300 ease-out border-t border-border z-10 ${isVisible ? 'translate-y-0' : 'translate-y-full'}`}
+        style={{ top: '48px', bottom: '74px' }}
+        className={`absolute left-0 right-0 bg-white rounded-t-[28px] pointer-events-auto flex flex-col shadow-2xl transition-transform duration-300 ease-out border-t border-border z-10 overflow-hidden ${isVisible ? 'translate-y-0' : 'translate-y-full'}`}
       >
         {/* Drag handle */}
         <div className="w-10 h-1 bg-muted-foreground/30 rounded-full mx-auto mt-3 mb-1 shrink-0"></div>
