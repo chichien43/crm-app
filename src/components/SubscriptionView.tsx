@@ -121,7 +121,7 @@ export default function SubscriptionView() {
 
       {/* Unified Top App Bar */}
       <div className="px-5 pt-8 pb-3 flex items-start gap-4 shrink-0">
-        <button className="relative text-primary mt-1 w-6 h-6 flex items-center justify-center shrink-0">
+        <button onClick={() => window.dispatchEvent(new Event('open-news'))} className="relative text-primary mt-1 w-6 h-6 flex items-center justify-center shrink-0 hover:opacity-80 transition-opacity">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>
           <span className="absolute -top-0.5 right-0 w-1.5 h-1.5 bg-destructive rounded-full"></span>
         </button>

@@ -46,19 +46,23 @@ export default function TodayView() {
   return (
     <div className="absolute inset-0 bg-background flex flex-col font-sans overflow-hidden">
       {/* Header */}
-      <div className="pt-12 pb-3 px-5 flex items-center justify-between shrink-0 bg-white/80 backdrop-blur-md z-10 sticky top-0">
-        <div>
+      <div className="pt-12 pb-3 px-5 flex items-start gap-3.5 shrink-0 bg-white/80 backdrop-blur-md z-10 sticky top-0">
+        <button onClick={() => window.dispatchEvent(new Event('open-news'))} className="relative text-primary mt-1 w-6 h-6 flex items-center justify-center shrink-0 hover:opacity-80 transition-opacity">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>
+          <span className="absolute -top-0.5 right-0 w-1.5 h-1.5 bg-destructive rounded-full"></span>
+        </button>
+        <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-bold text-foreground tracking-tight">{greeting}，{userProfile.name}</h1>
           <div className="text-[13px] text-muted-foreground mt-0.5">今天有 {td.length} 件待辦，{sch.length} 個行程</div>
         </div>
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center mt-1 shrink-0">
           <button onClick={() => window.dispatchEvent(new Event('open-search'))} className="w-8 h-8 rounded-full text-muted-foreground flex items-center justify-center hover:bg-muted transition-colors">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
           </button>
           <button onClick={() => window.dispatchEvent(new Event('open-settings'))} className="w-8 h-8 rounded-full text-muted-foreground flex items-center justify-center hover:bg-muted transition-colors">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
-          <button onClick={() => window.dispatchEvent(new Event('open-badges'))} className="w-9 h-9 rounded-full border-2 border-primary/20 p-0.5 relative overflow-hidden flex items-center justify-center">
+          <button onClick={() => window.dispatchEvent(new Event('open-badges'))} className="w-8 h-8 rounded-full border-2 border-primary/20 p-0.5 relative overflow-hidden flex items-center justify-center">
             <div className="w-full h-full bg-primary/10 rounded-full flex items-center justify-center text-primary text-[10px] font-bold">LV.5</div>
           </button>
         </div>

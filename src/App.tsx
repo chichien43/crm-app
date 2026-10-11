@@ -17,6 +17,7 @@ import { saveAll } from './data';
 import LoginView from './components/LoginView';
 import ProductDetailView from './components/ProductDetailView';
 import SearchView from './components/SearchView';
+import NewsView from './components/NewsView';
 
 export default function App() {
   const [_tick, setTick] = useState(0);
@@ -26,6 +27,7 @@ export default function App() {
   const [page, setPage] = useState<{ type: string, id: number } | null>(null);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showNews, setShowNews] = useState(false);
   const [showAddCustomer, setShowAddCustomer] = useState(false);
   const [showAddSchedule, setShowAddSchedule] = useState(false);
   const [showAddProduct, setShowAddProduct] = useState(false);
@@ -40,7 +42,14 @@ export default function App() {
   useEffect(() => {
     const handleOpenSettings = () => setShowSettings(true);
     const handleOpenSearch = () => setShowSearch(true);
+    const handleOpenNews = () => setShowNews(true);
     const handleOpenBadges = () => setShowBadges(true);
+    const handleNavTab = (e: any) => {
+      if (e.detail) {
+        setActiveTab(e.detail);
+        setPage(null);
+      }
+    };
     const handleLogout = () => {
       setIsAuthenticated(false);
       setActiveTab('today');
@@ -92,10 +101,12 @@ export default function App() {
     
     window.addEventListener('open-settings', handleOpenSettings);
     window.addEventListener('open-search', handleOpenSearch);
+    window.addEventListener('open-news', handleOpenNews);
     window.addEventListener('open-badges', handleOpenBadges);
     window.addEventListener('open-edit-sub', handleOpenEditSub);
     window.addEventListener('nav-cust-detail', handleNavCustDetail);
     window.addEventListener('nav-prod-detail', handleNavProdDetail);
+    window.addEventListener('nav-tab', handleNavTab);
     window.addEventListener('logout', handleLogout);
     window.addEventListener('data-updated', handleDataUpdate);
     window.addEventListener('go-back', handleGoBack);
@@ -107,10 +118,12 @@ export default function App() {
     return () => {
       window.removeEventListener('open-settings', handleOpenSettings);
       window.removeEventListener('open-search', handleOpenSearch);
+      window.removeEventListener('open-news', handleOpenNews);
       window.removeEventListener('open-badges', handleOpenBadges);
       window.removeEventListener('open-edit-sub', handleOpenEditSub);
       window.removeEventListener('nav-cust-detail', handleNavCustDetail);
       window.removeEventListener('nav-prod-detail', handleNavProdDetail);
+      window.removeEventListener('nav-tab', handleNavTab);
       window.removeEventListener('logout', handleLogout);
       window.removeEventListener('data-updated', handleDataUpdate);
       window.removeEventListener('go-back', handleGoBack);
@@ -203,6 +216,10 @@ export default function App() {
 
             {showSearch && (
               <SearchView onClose={() => setShowSearch(false)} />
+            )}
+
+            {showNews && (
+              <NewsView onClose={() => setShowNews(false)} />
             )}
 
             {showBadges && (
