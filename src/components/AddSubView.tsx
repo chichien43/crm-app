@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { initialCustomers, initialSubscriptions, initialProducts, initialReminders, TODAY } from '../data';
+import { initialCustomers, initialSubscriptions, initialProducts, initialReminders, TODAY, saveAll } from '../data';
 import { createPortal } from 'react-dom';
 import CustomerSelect from './CustomerSelect';
 
@@ -12,6 +12,11 @@ export default function AddSubView({ onClose, editId, defaultCustomerId }: { onC
   const [note, setNote] = useState('');
   const [remType, setRemType] = useState('下次出貨前 3 天');
   const [remText, setRemText] = useState('確認異動後的出貨是否正確');
+
+  // New Subscription Form State
+  const [newProdName, setNewProdName] = useState('');
+  const [newDate, setNewDate] = useState(TODAY);
+  const [newQuantity, setNewQuantity] = useState(1);
 
   useEffect(() => {
     setIsVisible(true);
@@ -26,43 +31,151 @@ export default function AddSubView({ onClose, editId, defaultCustomerId }: { onC
 
   const handleSave = () => {
     if (isEdit) {
-      const s = initialSubscriptions.find(x => x.id === Number(subId));
-      if (s) {
-        s.h.unshift({ d: TODAY, x: type + (val ? '：' + val : '') + (note ? ' (' + note + ')' : '') });
-        if (remType !== '不提醒') {
-          initialReminders.unshift({
-            id: Date.now(),
-            cid: s.c,
-            d: TODAY, // mock date logic for simplicity
-            t: '09:00',
-            n: remText || '跟進享回購',
-            k: '享回購'
-          });
-        }
-        window.dispatchEvent(new Event('data-updated'));
+      const selectedId = Number(subId);
+      if (!selectedId) {
+        setError('請選擇客戶的享回購');
+        return;
       }
+      const s = initialSubscriptions.find(x => x.id === selectedId);
+      if (!s) {
+        setError('找不到該筆享回購');
+        return;
+      }
+
+      if (type === '更換品項') {
+        const pName = val.trim();
+        if (!pName) {
+          setError('請輸入更換的產品名稱');
+          return;
+        }
+        let targetProd = initialProducts.find(p => p.name.trim().toLowerCase() === pName.toLowerCase() || String(p.id) === pName);
+        if (!targetProd) {
+          targetProd = {
+            id: Date.now(),
+            name: pName,
+            price: 1000,
+            pv: 30,
+            tags: ['享回購']
+          };
+          initialProducts.push(targetProd);
+        }
+        const oldProd = initialProducts.find(p => p.id === s.p);
+        const oldName = oldProd ? oldProd.name : '原品項';
+        s.p = targetProd.id;
+        s.st = '進行中';
+        s.m = '變更';
+        s.diff = `更換品項：${oldName} → ${targetProd.name}`;
+        s.h.unshift({
+          d: TODAY,
+          x: `更換品項：${oldName} → ${targetProd.name}${note ? `（${note}）` : ''}`
+        });
+      } else if (type === '改出貨日') {
+        const numMatch = val.match(/\d+/);
+        const newDay = numMatch ? parseInt(numMatch[0]) : s.day;
+        const oldDay = s.day;
+        s.day = newDay;
+        s.st = '進行中';
+        s.m = '變更';
+        s.diff = `出貨日改為每月 ${newDay} 日`;
+        s.h.unshift({
+          d: TODAY,
+          x: `改出貨日：每月 ${oldDay} 日 → ${newDay} 日${note ? `（${note}）` : ''}`
+        });
+      } else if (type === '變更數量') {
+        const numMatch = val.match(/\d+/);
+        const newQ = numMatch ? parseInt(numMatch[0]) : s.q;
+        const oldQ = s.q;
+        s.q = newQ;
+        s.st = '進行中';
+        s.m = '變更';
+        s.diff = `數量 ${oldQ} 盒 → ${newQ} 盒`;
+        s.h.unshift({
+          d: TODAY,
+          x: `變更數量：${oldQ} 盒 → ${newQ} 盒${note ? `（${note}）` : ''}`
+        });
+      } else if (type === '暫停') {
+        s.st = '暫停';
+        s.m = '暫停';
+        s.diff = val ? `暫停：${val}` : '暫停訂閱';
+        s.h.unshift({
+          d: TODAY,
+          x: `暫停訂閱${val ? `（${val}）` : ''}${note ? `（${note}）` : ''}`
+        });
+      } else if (type === '取消') {
+        s.st = '取消';
+        s.m = '取消';
+        s.diff = '取消訂閱';
+        s.h.unshift({
+          d: TODAY,
+          x: `取消訂閱${val ? `（${val}）` : ''}${note ? `（${note}）` : ''}`
+        });
+      } else if (type === '恢復') {
+        s.st = '進行中';
+        s.m = '恢復';
+        s.diff = '恢復訂閱';
+        s.h.unshift({
+          d: TODAY,
+          x: `恢復訂閱${note ? `（${note}）` : ''}`
+        });
+      } else {
+        s.h.unshift({ d: TODAY, x: type + (val ? '：' + val : '') + (note ? ' (' + note + ')' : '') });
+      }
+
+      if (remType !== '不提醒') {
+        initialReminders.unshift({
+          id: Date.now(),
+          cid: s.c,
+          d: TODAY,
+          t: '09:00',
+          n: remText || '跟進享回購',
+          k: '享回購'
+        });
+      }
+      saveAll();
+      window.dispatchEvent(new Event('data-updated'));
     } else {
       const cid = (document.getElementById('sub_c') as HTMLInputElement)?.value || '';
       if (!cid) {
         setError('請選擇客戶');
         return;
       }
+      const prodInput = newProdName.trim() || (document.getElementById('sub_p') as HTMLInputElement)?.value?.trim() || '';
+      if (!prodInput) {
+        setError('請輸入產品名稱');
+        return;
+      }
       setError('');
-      const date = (document.getElementById('sub_d') as HTMLInputElement)?.value || TODAY;
+      const date = newDate || (document.getElementById('sub_d') as HTMLInputElement)?.value || TODAY;
+
+      let product = initialProducts.find(p => p.name.trim().toLowerCase() === prodInput.toLowerCase() || String(p.id) === prodInput);
+      if (!product) {
+        product = {
+          id: Date.now(),
+          name: prodInput,
+          price: 1000,
+          pv: 30,
+          tags: ['享回購']
+        };
+        initialProducts.push(product);
+      }
+
+      const deliveryDay = parseInt(date.slice(-2)) || 15;
+      const qNum = Number(newQuantity) || 1;
 
       initialSubscriptions.unshift({
         id: Date.now(),
         c: Number(cid),
-        p: 1, // mock product id
-        q: 1,
-        cy: '1 個月',
-        day: parseInt(date.slice(-2)) || 15,
+        p: product.id,
+        q: qNum,
+        cy: '每月',
+        day: deliveryDay,
         st: '進行中',
-        m: '100%',
-        diff: '0',
+        m: '新加入',
+        diff: `新加入・每月 ${qNum} 盒`,
         ok: true,
-        h: []
+        h: [{ d: date || TODAY, x: `新加入享回購：${product.name}` }]
       });
+      saveAll();
       window.dispatchEvent(new Event('data-updated'));
     }
     handleClose();
@@ -125,26 +238,42 @@ export default function AddSubView({ onClose, editId, defaultCustomerId }: { onC
                     {['變更數量', '更換品項', '改出貨日', '暫停', '恢復', '取消'].map(t => (
                       <button 
                         key={t}
-                        onClick={() => setType(t)}
+                        onClick={() => {
+                          setType(t);
+                          setVal('');
+                        }}
                         className={`px-4 py-2 rounded-full text-[14px] transition-colors border ${type === t ? 'bg-primary border-primary text-white' : 'bg-white border-border text-muted-foreground'}`}
                       >
                         {t}
                       </button>
                     ))}
-                    <button className="w-10 h-[38px] rounded-full border border-primary text-primary flex items-center justify-center border-dashed">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
-                    </button>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[14px] text-muted-foreground">改成</label>
-                  <input value={val} onChange={e => setVal(e.target.value)} type="text" placeholder="例如：2 盒、暫停到 12 月" className="w-full bg-white border border-primary/20 rounded-xl px-4 py-3.5 text-[15px] focus:outline-none focus:border-primary transition-all shadow-sm" />
+                  <label className="text-[14px] text-muted-foreground">
+                    {type === '更換品項' ? '更換為品項' : type === '改出貨日' ? '改為每月幾號出貨' : type === '變更數量' ? '改為數量' : type === '暫停' ? '暫停期間 / 說明' : type === '取消' ? '取消原因（選填）' : '改成'}
+                  </label>
+                  <input 
+                    value={val} 
+                    onChange={e => setVal(e.target.value)} 
+                    type="text" 
+                    list={type === '更換品項' ? 'edit-product-list' : undefined}
+                    placeholder={type === '更換品項' ? '例如：益生菌 30包、11223' : type === '改出貨日' ? '例如：20（每月 20 日）' : type === '變更數量' ? '例如：2 盒' : type === '暫停' ? '例如：暫停 1 個月、暫停到 12 月' : type === '取消' ? '例如：暫不需要、吃不完' : '例如：2 盒'} 
+                    className="w-full bg-white border border-primary/20 rounded-xl px-4 py-3.5 text-[15px] focus:outline-none focus:border-primary transition-all shadow-sm" 
+                  />
+                  {type === '更換品項' && (
+                    <datalist id="edit-product-list">
+                      {initialProducts.map(p => (
+                        <option key={p.id} value={p.name} />
+                      ))}
+                    </datalist>
+                  )}
                 </div>
                 
                 <div className="space-y-2">
-                  <label className="text-[14px] text-muted-foreground">原因 / 備註</label>
-                  <input value={note} onChange={e => setNote(e.target.value)} type="text" placeholder="例如：客戶說吃不完" className="w-full bg-white border border-primary/20 rounded-xl px-4 py-3.5 text-[15px] focus:outline-none focus:border-primary transition-all shadow-sm" />
+                  <label className="text-[14px] text-muted-foreground">備註 / 原因</label>
+                  <input value={note} onChange={e => setNote(e.target.value)} type="text" placeholder="例如：客戶說吃不完、由專員協助更新" className="w-full bg-white border border-primary/20 rounded-xl px-4 py-3.5 text-[15px] focus:outline-none focus:border-primary transition-all shadow-sm" />
                 </div>
 
                 <div className="bg-primary/5 border border-primary/10 rounded-2xl p-4 space-y-4 relative overflow-hidden">
@@ -181,12 +310,42 @@ export default function AddSubView({ onClose, editId, defaultCustomerId }: { onC
 
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-medium text-muted-foreground ml-1">產品 <span className="text-destructive">*</span></label>
-                  <input id="sub_p" type="text" placeholder="例如：保健食品" className="w-full bg-white border border-border rounded-xl px-4 py-3.5 text-[15px] focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" />
+                  <input 
+                    id="sub_p" 
+                    type="text" 
+                    value={newProdName}
+                    onChange={e => setNewProdName(e.target.value)}
+                    list="new-prod-options"
+                    placeholder="輸入或選擇產品，例如：益生菌 30包、11223" 
+                    className="w-full bg-white border border-border rounded-xl px-4 py-3.5 text-[15px] focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" 
+                  />
+                  <datalist id="new-prod-options">
+                    {initialProducts.map(p => (
+                      <option key={p.id} value={p.name} />
+                    ))}
+                  </datalist>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-medium text-muted-foreground ml-1">數量</label>
+                  <input 
+                    type="number" 
+                    min="1"
+                    value={newQuantity}
+                    onChange={e => setNewQuantity(parseInt(e.target.value) || 1)}
+                    className="w-full bg-white border border-border rounded-xl px-4 py-3.5 text-[15px] focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" 
+                  />
                 </div>
                 
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-medium text-muted-foreground ml-1">下次扣款日 <span className="text-destructive">*</span></label>
-                  <input id="sub_d" type="date" defaultValue={TODAY} className="w-full bg-white border border-border rounded-xl px-4 py-3.5 text-[15px] focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" />
+                  <label className="text-[13px] font-medium text-muted-foreground ml-1">下次扣款 / 出貨日 <span className="text-destructive">*</span></label>
+                  <input 
+                    id="sub_d" 
+                    type="date" 
+                    value={newDate} 
+                    onChange={e => setNewDate(e.target.value)}
+                    className="w-full bg-white border border-border rounded-xl px-4 py-3.5 text-[15px] focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" 
+                  />
                 </div>
               </>
             )}

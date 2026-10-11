@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { initialSubscriptions, initialCustomers, initialProducts, initialReminders, TODAY, checkHasUnreadNews, getSubscriptionMonthStatus } from '../data';
+import { initialSubscriptions, initialCustomers, initialProducts, initialReminders, TODAY, checkHasUnreadNews, getSubscriptionMonthStatus, saveAll } from '../data';
 
 export default function SubscriptionView() {
   const [subs, setSubs] = useState(initialSubscriptions);
@@ -12,6 +12,7 @@ export default function SubscriptionView() {
   const [remDate, setRemDate] = useState(TODAY);
   const [remTime, setRemTime] = useState('09:00');
   const [hasUnreadNews, setHasUnreadNews] = useState(checkHasUnreadNews);
+  const [editingHistory, setEditingHistory] = useState<{ subId: number, index: number, d: string, x: string } | null>(null);
 
   // Dynamic Year & Month
   const now = new Date();
@@ -333,24 +334,39 @@ export default function SubscriptionView() {
           const isOpen = openItems[s.id];
           const mc = getStatusColor(s.m);
           const hasRem = initialReminders.some(r => r.cid === s.c && r.k === '享回購');
+          const isCanceled = s.st === '取消' || s.m === '取消';
 
           if (!c || !p) return null;
 
           return (
-            <div key={s.id} className="bg-card border border-border p-3 rounded-xl shadow-sm animate-fade-in">
+            <div 
+              key={s.id} 
+              className={`bg-card border ${isCanceled ? 'border-destructive/40 bg-destructive/[0.03]' : 'border-border'} p-3 rounded-xl shadow-sm animate-fade-in relative overflow-hidden`}
+            >
+              {/* 取消單呈現刪除紅線 */}
+              {isCanceled && (
+                <div className="absolute inset-x-2 top-7 h-[2px] bg-destructive pointer-events-none z-10 opacity-80 shadow-[0_0_3px_rgba(239,68,68,0.5)]"></div>
+              )}
+
               <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-medium shrink-0 mt-1">{c.ini}</div>
+                <div className={`w-10 h-10 rounded-full ${isCanceled ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary'} flex items-center justify-center font-medium shrink-0 mt-1`}>
+                  {c.ini}
+                </div>
                 <div className="flex-1 min-w-0" onClick={() => toggleOpen(s.id)}>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{c.name}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-sm whitespace-nowrap bg-${mc === 'muted' ? 'muted' : mc+'/10'} text-${mc === 'muted' ? 'muted-foreground' : mc}`}>{s.m}</span>
+                    <span className={`font-medium ${isCanceled ? 'line-through text-destructive decoration-destructive decoration-2' : 'text-foreground'}`}>
+                      {c.name}
+                    </span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-sm whitespace-nowrap ${isCanceled ? 'bg-destructive/15 text-destructive font-semibold border border-destructive/30' : `bg-${mc === 'muted' ? 'muted' : mc+'/10'} text-${mc === 'muted' ? 'muted-foreground' : mc}`}`}>
+                      {isCanceled ? '已取消' : s.m}
+                    </span>
                     {hasRem && (
                       <span className="text-[11px] text-muted-foreground flex items-center gap-0.5 ml-auto">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-muted-foreground truncate mt-1">
+                  <div className={`text-xs ${isCanceled ? 'line-through text-destructive/80' : 'text-muted-foreground'} truncate mt-1`}>
                     {p.name} × {s.q} ・ {s.cy} ・ {s.day} 日
                   </div>
                 </div>
@@ -363,19 +379,113 @@ export default function SubscriptionView() {
               </div>
 
               {s.diff && (
-                <div className={`mt-2 mx-12 text-xs rounded-lg px-3 py-2 bg-${mc === 'muted' ? 'muted' : mc+'/10'} text-${mc === 'muted' ? 'muted-foreground' : mc}`}>
+                <div className={`mt-2 mx-12 text-xs rounded-lg px-3 py-2 ${isCanceled ? 'bg-destructive/10 text-destructive line-through decoration-destructive' : `bg-${mc === 'muted' ? 'muted' : mc+'/10'} text-${mc === 'muted' ? 'muted-foreground' : mc}`}`}>
                   {s.diff}
                 </div>
               )}
 
               {isOpen && (
-                <div className="mt-3 ml-12 border-t border-border pt-3 animate-fade-in">
-                  {s.h.map((h, i) => (
-                    <div key={i} className="text-xs py-1 flex gap-2">
-                      <span className="text-muted-foreground w-10 shrink-0">{h.d.slice(5).replace('-','/')}</span>
-                      <span>{h.x}</span>
-                    </div>
-                  ))}
+                <div className="mt-3 ml-12 border-t border-border pt-3 animate-fade-in space-y-2">
+                  <div className="text-[11px] font-semibold text-muted-foreground flex items-center justify-between">
+                    <span>異動歷程記錄</span>
+                    <span className="text-[10px] font-normal text-muted-foreground">點擊 ✎ 編輯、🗑 刪除</span>
+                  </div>
+
+                  {s.h.map((h, i) => {
+                    const isEditingThis = editingHistory?.subId === s.id && editingHistory?.index === i;
+                    if (isEditingThis) {
+                      return (
+                        <div key={i} className="bg-muted/70 p-2.5 rounded-xl border border-primary/30 space-y-2 my-1">
+                          <div className="text-[11px] font-medium text-primary">編輯異動記錄</div>
+                          <div className="flex gap-2">
+                            <input 
+                              type="date" 
+                              value={editingHistory.d} 
+                              onChange={e => setEditingHistory({ ...editingHistory, d: e.target.value })}
+                              className="w-32 bg-white border border-border rounded-lg px-2 py-1 text-xs outline-none focus:border-primary"
+                            />
+                            <input 
+                              type="text" 
+                              value={editingHistory.x} 
+                              onChange={e => setEditingHistory({ ...editingHistory, x: e.target.value })}
+                              className="flex-1 bg-white border border-border rounded-lg px-2 py-1 text-xs outline-none focus:border-primary"
+                              placeholder="異動說明..."
+                            />
+                          </div>
+                          <div className="flex justify-end gap-1.5">
+                            <button 
+                              onClick={() => setEditingHistory(null)}
+                              className="px-2.5 py-1 text-xs rounded-md bg-white border border-border text-muted-foreground hover:bg-muted"
+                            >
+                              取消
+                            </button>
+                            <button 
+                              onClick={() => {
+                                const subItem = initialSubscriptions.find(x => x.id === s.id);
+                                if (subItem && subItem.h[i]) {
+                                  subItem.h[i].d = editingHistory.d;
+                                  subItem.h[i].x = editingHistory.x;
+                                  if (i === 0) {
+                                    subItem.diff = editingHistory.x;
+                                  }
+                                  saveAll();
+                                  window.dispatchEvent(new Event('data-updated'));
+                                  setToastMsg('已更新異動記錄');
+                                  setTimeout(() => setToastMsg(null), 2000);
+                                }
+                                setEditingHistory(null);
+                              }}
+                              className="px-2.5 py-1 text-xs rounded-md bg-primary text-white font-medium hover:bg-primary/90"
+                            >
+                              儲存
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div key={i} className="text-xs py-1.5 flex items-center gap-2 group hover:bg-muted/30 px-1 rounded-md transition-colors">
+                        <span className="text-muted-foreground w-12 shrink-0 text-[11px] font-mono">{h.d.slice(5).replace('-','/')}</span>
+                        <span className="flex-1 text-foreground break-all">{h.x}</span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingHistory({ subId: s.id, index: i, d: h.d, x: h.x });
+                            }}
+                            title="修改此筆記錄"
+                            className="p-1 text-muted-foreground hover:text-primary rounded hover:bg-primary/10 transition-colors"
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const subItem = initialSubscriptions.find(x => x.id === s.id);
+                              if (subItem && subItem.h[i]) {
+                                subItem.h.splice(i, 1);
+                                if (i === 0 && subItem.h.length > 0) {
+                                  subItem.diff = subItem.h[0].x;
+                                } else if (subItem.h.length === 0) {
+                                  subItem.diff = '';
+                                }
+                                saveAll();
+                                window.dispatchEvent(new Event('data-updated'));
+                                setToastMsg('已刪除此筆異動記錄');
+                                setTimeout(() => setToastMsg(null), 2000);
+                              }
+                            }}
+                            title="刪除此筆記錄"
+                            className="p-1 text-muted-foreground hover:text-destructive rounded hover:bg-destructive/10 transition-colors"
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+
                   {remId === s.id ? (
                     <div className="mt-3 bg-white border border-border p-3 rounded-xl shadow-sm">
                       <div className="text-[13px] font-medium mb-2">設定提醒</div>
@@ -394,6 +504,7 @@ export default function SubscriptionView() {
                             n: `跟進享回購：${p.name}`,
                             k: '享回購'
                           });
+                          saveAll();
                           window.dispatchEvent(new Event('data-updated'));
                           setRemId(null);
                         }} className="px-3 py-1.5 bg-primary text-white rounded-lg text-sm font-medium">儲存</button>

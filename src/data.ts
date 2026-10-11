@@ -106,6 +106,35 @@ export const getSubscriptionMonthStatus = (sub: Subscription, year: number, mont
   const targetVal = year * 12 + month;
   const oct2026Val = 2026 * 12 + 9;
 
+  // 1. Cancellation check (次月起不應再出現；取消當月顯示取消紅線狀態)
+  if (sub.st === '取消' || (sub.h && sub.h.some(h => h.x.includes('取消')))) {
+    const cancelEntry = sub.h?.find(h => h.x.includes('取消'));
+    const cancelDate = cancelEntry?.d || TODAY;
+    const [cy, cm] = cancelDate.split('-').map(Number);
+    const cancelVal = cy * 12 + (cm - 1);
+
+    if (targetVal === cancelVal) {
+      return {
+        ...sub,
+        st: '取消',
+        m: '取消',
+        diff: sub.diff && sub.diff.includes('取消') ? sub.diff : '取消訂閱'
+      };
+    } else if (targetVal > cancelVal) {
+      // 次月及之後月份不再出現
+      return null;
+    } else {
+      // 取消前月份為正常訂閱中
+      return {
+        ...sub,
+        st: '進行中',
+        m: '無異動',
+        diff: ''
+      };
+    }
+  }
+
+  // 2. Pause check (例如：張大偉 10–11月暫停，12月恢復訂閱中)
   if (sub.c === 5 || (sub.diff && (sub.diff.includes('10–11') || sub.diff.includes('10-11')))) {
     const pauseStart = 2026 * 12 + 9;
     const pauseEnd = 2026 * 12 + 10;
@@ -126,7 +155,63 @@ export const getSubscriptionMonthStatus = (sub: Subscription, year: number, mont
     }
   }
 
-  if (sub.c === 1 || (sub.h && sub.h.some(h => h.d.startsWith('2026-10') && h.x.includes('數量')))) {
+  if (sub.st === '暫停') {
+    const pauseEntry = sub.h?.find(h => h.x.includes('暫停'));
+    const pauseDate = pauseEntry?.d || TODAY;
+    const [py, pm] = pauseDate.split('-').map(Number);
+    const pauseVal = py * 12 + (pm - 1);
+    if (targetVal === pauseVal) {
+      return {
+        ...sub,
+        st: '暫停',
+        m: '暫停',
+        diff: sub.diff || '暫停'
+      };
+    } else if (targetVal > pauseVal) {
+      return {
+        ...sub,
+        st: '暫停',
+        m: '無異動',
+        diff: ''
+      };
+    } else {
+      return {
+        ...sub,
+        st: '進行中',
+        m: '無異動',
+        diff: ''
+      };
+    }
+  }
+
+  // 3. New subscription check (新加入者，在加入月份標記「新加入」，後續月份為正常「訂閱中・無異動」，加入前為 null)
+  if (sub.m === '新加入' || (sub.h && sub.h.some(h => h.x.includes('新加入')))) {
+    const addEntry = sub.h?.find(h => h.x.includes('新加入'));
+    const addDate = addEntry?.d || TODAY;
+    const [ay, am] = addDate.split('-').map(Number);
+    const addVal = ay * 12 + (am - 1);
+
+    if (targetVal === addVal) {
+      return {
+        ...sub,
+        st: '進行中',
+        m: '新加入',
+        diff: sub.diff || `新加入・每月 ${sub.q} 盒`
+      };
+    } else if (targetVal > addVal) {
+      return {
+        ...sub,
+        st: '進行中',
+        m: '無異動',
+        diff: ''
+      };
+    } else {
+      return null;
+    }
+  }
+
+  // 4. Default client 1 (李佩玲 10/5 數量 2盒改1盒，11月維持1盒且為無異動)
+  if (sub.c === 1 || (sub.h && sub.h.some(h => h.d.startsWith('2026-10') && h.x.includes('數量 2 盒 → 1 盒')))) {
     if (targetVal === oct2026Val) {
       return {
         ...sub,
@@ -154,26 +239,7 @@ export const getSubscriptionMonthStatus = (sub: Subscription, year: number, mont
     }
   }
 
-  if (sub.c === 3 || sub.m === '新加入') {
-    if (targetVal === oct2026Val) {
-      return {
-        ...sub,
-        st: '進行中',
-        m: '新加入',
-        diff: sub.diff || '新加入・每月 1 盒'
-      };
-    } else if (targetVal > oct2026Val) {
-      return {
-        ...sub,
-        st: '進行中',
-        m: '無異動',
-        diff: ''
-      };
-    } else {
-      return null;
-    }
-  }
-
+  // 5. Generic change timeline:
   const changeDate = sub.h && sub.h[0]?.d ? sub.h[0].d : null;
   if (changeDate) {
     const [cy, cm] = changeDate.split('-').map(Number);
